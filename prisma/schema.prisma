@@ -55,7 +55,7 @@ model Product {
   options  ProductOption[]
   variants ProductVariant[]
   specs    ProductSpec[]
-  images   ProductImage[]
+  media    ProductMedia[]
 
   // Denormalized for catalog cards — avoids an aggregate per render.
   // Recalculated whenever a variant price changes.
@@ -101,7 +101,7 @@ model ProductOptionValue {
   position Int     @default(0)
 
   variantValues VariantOptionValue[]
-  images        ProductImage[]
+  media         ProductMedia[]
 
   @@unique([optionId, value])
   @@index([optionId])
@@ -164,7 +164,9 @@ model ProductSpec {
   @@index([productId, position])
 }
 
-model ProductImage {
+// One ordered reel per product, mixing images and video. Hosted on
+// Cloudinary — never in the repo, never in transactional email.
+model ProductMedia {
   id        String  @id @default(cuid())
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -174,11 +176,20 @@ model ProductImage {
   optionValueId String?
   optionValue   ProductOptionValue? @relation(fields: [optionValueId], references: [id], onDelete: SetNull)
 
-  url      String
-  alt      String
-  position Int    @default(0)
+  type MediaType @default(IMAGE)
+  url  String
+  // Cover frame for videos — required in practice for type VIDEO so the
+  // gallery never autoplays; playback is tap-to-play, muted by default.
+  posterUrl String?
+  alt       String
+  position  Int    @default(0)
 
   @@index([productId, position])
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
 }
 
 // ─── Inventory ──────────────────────────────────────────────

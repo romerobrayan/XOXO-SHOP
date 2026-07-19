@@ -28,11 +28,15 @@ export default function StorefrontLayout({
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
       <footer className="border-t border-bone/10">
-        <div className="mx-auto w-full max-w-6xl px-4 py-8 text-small text-bone/60">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-8 text-small text-bone/60">
           <p>
             Envío discreto a toda Colombia. Pago contra entrega en Medellín. El
             paquete llega en empaque neutro, sin marca ni referencia al
             contenido.
+          </p>
+          <p className="font-mono text-micro uppercase text-bone/60">
+            Vista previa de diseño — las imágenes son provisionales y se
+            reemplazan con la fotografía del proveedor.
           </p>
         </div>
       </footer>
