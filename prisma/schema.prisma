@@ -1,0 +1,380 @@
+// XoXo Store — catalog, inventory, orders, payments.
+// Modeling rationale: docs/XOXO_TECHNICAL_SPEC.md §6.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Connection URL lives in prisma.config.ts (Prisma 7) and the runtime
+// adapter in src/lib/db.ts — never here.
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Catalog ────────────────────────────────────────────────
+
+model Brand {
+  id       String    @id @default(cuid())
+  name     String    @unique // "Lovense", "Sen Intimo", "Pretty Love"
+  slug     String    @unique
+  logoUrl  String?
+  products Product[]
+}
+
+model Category {
+  id       String     @id @default(cuid())
+  name     String // "Lencería", "Cosmética íntima", "Juguetería"
+  slug     String     @unique
+  position Int        @default(0)
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String
+  description String?       @db.Text
+  status      ProductStatus @default(DRAFT)
+
+  supplierRef String? // supplier reference, e.g. "11362" — already in use
+
+  brandId    String?
+  brand      Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  options  ProductOption[]
+  variants ProductVariant[]
+  specs    ProductSpec[]
+  images   ProductImage[]
+
+  // Denormalized for catalog cards — avoids an aggregate per render.
+  // Recalculated whenever a variant price changes.
+  minPriceCents Int @default(0)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@index([brandId])
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// An axis of choice. Zero rows is valid and common.
+model ProductOption {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  name     String // "Talla" | "Color" | "Presentación"
+  position Int    @default(0)
+
+  values ProductOptionValue[]
+
+  @@unique([productId, name])
+  @@index([productId])
+}
+
+model ProductOptionValue {
+  id       String        @id @default(cuid())
+  optionId String
+  option   ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  value    String // "S" | "Negro" | "30 ml"
+  hex      String? // set for colors, null otherwise — drives UI swatches
+  position Int     @default(0)
+
+  variantValues VariantOptionValue[]
+  images        ProductImage[]
+
+  @@unique([optionId, value])
+  @@index([optionId])
+}
+
+// The sellable unit. Always at least one per product.
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  sku            String  @unique
+  priceCents     Int
+  compareAtCents Int? // strikethrough price for promotions
+  barcode        String?
+
+  // Sorted, joined option value IDs. Enforces combination uniqueness,
+  // which Prisma cannot express over a relation. "" for option-less products.
+  optionKey String @default("")
+
+  // Inventory. available = stockOnHand - stockReserved
+  stockOnHand   Int @default(0)
+  stockReserved Int @default(0)
+  lowStockAt    Int @default(3)
+
+  isActive     Boolean              @default(true)
+  optionValues VariantOptionValue[]
+  movements    InventoryMovement[]
+  orderItems   OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, optionKey])
+  @@index([productId])
+  @@index([sku])
+}
+
+model VariantOptionValue {
+  variantId     String
+  variant       ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  optionValueId String
+  optionValue   ProductOptionValue @relation(fields: [optionValueId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, optionValueId])
+  @@index([optionValueId])
+}
+
+// Display-only attributes that do NOT vary within a product.
+// "Material: silicona médica" · "Conectividad: Bluetooth" · "Contenido: 130 ml"
+model ProductSpec {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  label    String
+  value    String
+  position Int    @default(0)
+
+  @@index([productId, position])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Nullable: null = applies to the whole product.
+  // Set = show when that option value is selected (color-specific photography).
+  optionValueId String?
+  optionValue   ProductOptionValue? @relation(fields: [optionValueId], references: [id], onDelete: SetNull)
+
+  url      String
+  alt      String
+  position Int    @default(0)
+
+  @@index([productId, position])
+}
+
+// ─── Inventory ──────────────────────────────────────────────
+
+// Append-only ledger. The stock columns on ProductVariant are the running
+// balance; this explains how it got there. Essential for a store migrating
+// off manual DM-based tracking.
+model InventoryMovement {
+  id        String         @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  delta  Int // negative = stock leaving
+  reason MovementReason
+  note   String?
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([variantId, createdAt])
+}
+
+enum MovementReason {
+  PURCHASE // restocked from supplier
+  SALE
+  RETURN
+  MANUAL_ADJUST // physical count correction
+  DAMAGE
+  RESERVATION
+  RESERVATION_RELEASE
+}
+
+// ─── Orders ─────────────────────────────────────────────────
+
+model Customer {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  fullName  String
+  phone     String
+  orders    Order[]
+  addresses Address[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  fullName     String
+  phone        String
+  documentType DocumentType // required for Colombian invoicing
+  documentId   String
+  department   String // Antioquia
+  city         String // Medellín
+  line1        String
+  neighborhood String?
+  notes        String?
+
+  isDefault Boolean @default(false)
+  orders    Order[]
+
+  @@index([customerId])
+}
+
+enum DocumentType {
+  CC // cédula de ciudadanía
+  CE // cédula de extranjería
+  NIT
+  PP // pasaporte
+}
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique // "XOXO-7F3K2M" — what the customer quotes on WhatsApp
+
+  // Nullable: guest checkout is mandatory in this category.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  addressId  String?
+  address    Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  guestEmail String?
+  guestPhone String?
+
+  status   OrderStatus @default(PENDING)
+  currency String      @default("COP")
+
+  subtotalCents Int
+  shippingCents Int @default(0)
+  discountCents Int @default(0)
+  totalCents    Int
+
+  // Discretion is a functional requirement, not a preference.
+  discreetPackaging Boolean @default(true)
+
+  items     OrderItem[]
+  payments  Payment[]
+  movements InventoryMovement[]
+
+  // Reservations expire so abandoned carts release stock.
+  reservationExpiresAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  paidAt    DateTime?
+  shippedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([customerId])
+}
+
+enum OrderStatus {
+  PENDING // created, awaiting payment
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+// Snapshot of the purchase. Catalog data is copied, not joined,
+// so later edits never rewrite history.
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  productName String
+  brandName   String?
+  variantSku  String
+  // Human-readable at purchase time, e.g. "Talla: S · Color: Negro".
+  // Empty string for option-less products.
+  variantLabel    String
+  optionsSnapshot Json?
+  imageUrl        String?
+
+  unitPriceCents Int
+  quantity       Int
+  totalCents     Int
+
+  @@index([orderId])
+}
+
+// ─── Payments ───────────────────────────────────────────────
+
+model Payment {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  provider          String // "wompi" | "payu" | "mock" — never "stripe", see spec §2
+  providerReference String?       @unique
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amountCents       Int
+
+  rawPayload Json? // full provider response, for reconciliation and disputes
+
+  // Manual transfer flow: customer uploads a receipt, an advisor approves in the
+  // admin panel. Nothing ships until status is APPROVED.
+  proofOfPaymentUrl String?
+  verifiedAt        DateTime?
+  verifiedBy        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+enum PaymentMethod {
+  CARD
+  PSE
+  NEQUI
+  DAVIPLATA
+  BANCOLOMBIA_TRANSFER
+  CASH_ON_DELIVERY // contra entrega — already the client's working channel
+  BANK_TRANSFER_MANUAL // customer transfers, uploads proof, an advisor verifies
+}
+
+enum PaymentStatus {
+  PENDING
+  AWAITING_VERIFICATION // proof uploaded, waiting on a human to confirm
+  APPROVED
+  DECLINED
+  VOIDED
+  ERROR
+  REFUNDED
+}

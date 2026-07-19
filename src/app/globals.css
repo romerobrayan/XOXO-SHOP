@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/*
+ * XoXo brand tokens — see CLAUDE.md "Design tokens" and docs/XOXO_TECHNICAL_SPEC.md §8.
+ * Thesis: neon signage outside, calm pharmacy inside. The wordmark and one accent
+ * carry all the heat; everything else stays quiet.
+ */
+@theme {
+  --color-ink: #0b0a0f; /* ground */
+  --color-surface: #16141c; /* elevated cards */
+  --color-neon: #ff2bc2; /* magenta glow — the signature, one element per view */
+  --color-ember: #f5325b; /* wordmark red */
+  --color-blush: #f6c9de; /* soft pink, from highlight covers */
+  --color-mist: #c9b6e4; /* lavender, from highlight covers */
+  --color-bone: #f4f2f6; /* body text on dark */
+
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* Type scale — mobile-first, 375px base. Body never below 16px. */
+  --text-display: 2rem; /* 32 */
+  --text-display--line-height: 2.25rem; /* 36 */
+  --text-display--font-weight: 600;
+  --text-title: 1.5rem; /* 24 */
+  --text-title--line-height: 1.875rem; /* 30 */
+  --text-title--font-weight: 600;
+  --text-heading: 1.25rem; /* 20 */
+  --text-heading--line-height: 1.625rem; /* 26 */
+  --text-heading--font-weight: 500;
+  --text-body: 1rem; /* 16 */
+  --text-body--line-height: 1.625rem; /* 26 */
+  --text-small: 0.875rem; /* 14 */
+  --text-small--line-height: 1.25rem; /* 20 */
+  --text-small--letter-spacing: 0.01em; /* dark-ground tracking at 14px and below */
+  --text-micro: 0.75rem; /* 12 */
+  --text-micro--line-height: 1rem; /* 16 */
+  --text-micro--font-weight: 500;
+  --text-micro--letter-spacing: 0.08em; /* uppercase micro labels */
+  --text-price: 1.75rem; /* 28 */
+  --text-price--line-height: 2rem; /* 32 */
+  --text-price--font-weight: 500;
+  --text-price-sm: 1rem; /* 16 */
+  --text-price-sm--line-height: 1.25rem; /* 20 */
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-bone);
+  font-family: var(--font-sans);
+}
+
+/* Prices, SKUs, quantities, and spec values always align down the grid. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
