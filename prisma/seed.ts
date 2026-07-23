@@ -16,10 +16,14 @@ async function main() {
   await db.productOptionValue.deleteMany();
   await db.productOption.deleteMany();
   await db.productSpec.deleteMany();
-  await db.productImage.deleteMany();
+  await db.productMedia.deleteMany();
   await db.product.deleteMany();
   await db.category.deleteMany();
   await db.brand.deleteMany();
+
+  // Staggered publish dates so `orderBy publishedAt desc` is deterministic —
+  // the storefront's "newest first" ordering is part of what gets reviewed.
+  const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
   const [lovense, senIntimo, prettyLove] = await Promise.all(
     ["Lovense", "Sen Intimo", "Pretty Love"].map((name) =>
@@ -40,12 +44,19 @@ async function main() {
       name: "Conjunto Tiras",
       slug: "conjunto-tiras",
       status: "ACTIVE",
-      publishedAt: new Date(),
+      publishedAt: daysAgo(0),
       supplierRef: "11362",
       categoryId: lenceria.id,
       minPriceCents: 45_000_00,
       description:
         "Conjunto de dos piezas en tiras elásticas ajustables. Tejido suave con elastano. Lavar a mano con agua fría.",
+      specs: {
+        create: [
+          { label: "Material", value: "Tejido con elastano", position: 0 },
+          { label: "Piezas", value: "2", position: 1 },
+          { label: "Cuidado", value: "Lavar a mano con agua fría", position: 2 },
+        ],
+      },
       options: {
         create: [
           {
@@ -115,7 +126,7 @@ async function main() {
       name: "Sen Intimo Desensibilizante",
       slug: "sen-intimo-desensibilizante",
       status: "ACTIVE",
-      publishedAt: new Date(),
+      publishedAt: daysAgo(1),
       brandId: senIntimo.id,
       categoryId: cosmetica.id,
       minPriceCents: 45_000_00,
@@ -174,7 +185,7 @@ async function main() {
       name: "Lovense Lush 3",
       slug: "lovense-lush-3",
       status: "ACTIVE",
-      publishedAt: new Date(),
+      publishedAt: daysAgo(2),
       brandId: lovense.id,
       categoryId: jugueteria.id,
       minPriceCents: 120_000_00,
@@ -207,7 +218,7 @@ async function main() {
       name: "Pretty Love Huevo Vibrador",
       slug: "pretty-love-huevo-vibrador",
       status: "ACTIVE",
-      publishedAt: new Date(),
+      publishedAt: daysAgo(3),
       brandId: prettyLove.id,
       categoryId: jugueteria.id,
       minPriceCents: 60_000_00,
@@ -237,6 +248,9 @@ async function main() {
     include: { options: { include: { values: true } } },
   });
 
+  // compareAtCents: the discounted state is the normal merchandising state in
+  // this market (see DESIGN_BRIEF_PDP.md field research) — the demo data must
+  // exercise it, not treat it as an edge case.
   for (const value of huevo.options[0].values) {
     const valueIds = [value.id];
     await db.productVariant.create({
@@ -244,6 +258,7 @@ async function main() {
         productId: huevo.id,
         sku: `PL-HUEVO-${value.value.toUpperCase()}`,
         priceCents: 60_000_00,
+        compareAtCents: 75_000_00,
         stockOnHand: value.value === "Morado" ? 0 : 6,
         optionKey: computeOptionKey(valueIds),
         optionValues: {
@@ -252,6 +267,101 @@ async function main() {
       },
     });
   }
+
+  // ── One axis, on promotion: Conjunto Encaje — Talla ──────────────────────
+  const encaje = await db.product.create({
+    data: {
+      name: "Conjunto Encaje",
+      slug: "conjunto-encaje",
+      status: "ACTIVE",
+      publishedAt: daysAgo(4),
+      supplierRef: "11417",
+      categoryId: lenceria.id,
+      minPriceCents: 55_000_00,
+      description:
+        "Conjunto de dos piezas en encaje con forro suave. Copa sin varilla y tiras ajustables. Lavar a mano con agua fría y secar a la sombra.",
+      options: {
+        create: [
+          {
+            name: "Talla",
+            position: 0,
+            values: {
+              create: ["S", "M", "L"].map((value, position) => ({
+                value,
+                position,
+              })),
+            },
+          },
+        ],
+      },
+      specs: {
+        create: [
+          { label: "Material", value: "Encaje con forro", position: 0 },
+          { label: "Color", value: "Negro", position: 1 },
+          { label: "Cuidado", value: "Lavar a mano con agua fría", position: 2 },
+        ],
+      },
+    },
+    include: { options: { include: { values: true } } },
+  });
+
+  const encajeStock: Array<[string, number]> = [
+    ["S", 5],
+    ["M", 4],
+    ["L", 6],
+  ];
+  const encajeValues = new Map(
+    encaje.options[0].values.map((v) => [v.value, v.id] as const),
+  );
+  for (const [talla, stockOnHand] of encajeStock) {
+    const valueIds = [encajeValues.get(talla)!];
+    await db.productVariant.create({
+      data: {
+        productId: encaje.id,
+        sku: `11417-${talla}`,
+        priceCents: 55_000_00,
+        compareAtCents: 65_000_00,
+        stockOnHand,
+        optionKey: computeOptionKey(valueIds),
+        optionValues: {
+          create: valueIds.map((optionValueId) => ({ optionValueId })),
+        },
+      },
+    });
+  }
+
+  // ── Zero axes, fully sold out: the PLP "Agotado" card state ──────────────
+  // Name follows the client's current listing style (like the Huevo Vibrador);
+  // exact manufacturer model names arrive with her catalog list.
+  await db.product.create({
+    data: {
+      name: "Pretty Love Anillo Vibrador",
+      slug: "pretty-love-anillo-vibrador",
+      status: "ACTIVE",
+      publishedAt: daysAgo(5),
+      brandId: prettyLove.id,
+      categoryId: jugueteria.id,
+      minPriceCents: 45_000_00,
+      description:
+        "Anillo con vibración de un solo botón. Material flexible libre de ftalatos. Batería incluida. Lavar con agua tibia y jabón neutro antes y después de cada uso.",
+      specs: {
+        create: [
+          { label: "Material", value: "TPE libre de ftalatos", position: 0 },
+          { label: "Batería", value: "Incluida", position: 1 },
+        ],
+      },
+      variants: {
+        create: [
+          {
+            sku: "PL-ANILLO",
+            priceCents: 45_000_00,
+            stockOnHand: 0,
+            optionKey: computeOptionKey([]),
+          },
+        ],
+      },
+    },
+  });
 
   const counts = {
     brands: await db.brand.count(),

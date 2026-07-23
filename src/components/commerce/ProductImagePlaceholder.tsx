@@ -1,13 +1,7 @@
 // Placeholder for pending product photography — see docs/DESIGN_BRIEF_PDP.md.
 // Rules: never prettier than the real asset, varies by slug-derived tint, and
 // honestly labeled so the client never mistakes it for a design choice.
-const TINTS = ["#F6C9DE", "#C9B6E4", "#FF2BC2", "#F5325B"] as const;
-
-function tintFor(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return TINTS[Math.abs(h) % TINTS.length];
-}
+import { tintFor } from "@/lib/tint";
 
 export function ProductImagePlaceholder({
   name,
@@ -30,10 +24,10 @@ export function ProductImagePlaceholder({
         }}
       />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-bone/40">
+        <span className="font-mono text-micro uppercase text-bone/60">
           Imagen pendiente
         </span>
-        <span className="font-sans text-sm text-bone/70">{name}</span>
+        <span className="font-sans text-small text-bone/70">{name}</span>
       </div>
     </div>
   );

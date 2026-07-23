@@ -18,7 +18,8 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-12 px-6 text-body",
-        sm: "h-10 px-4 text-small",
+        // 44px minimum — thumb-first storefront, no sub-44 tap targets.
+        sm: "h-11 px-4 text-small",
         icon: "size-12",
       },
     },

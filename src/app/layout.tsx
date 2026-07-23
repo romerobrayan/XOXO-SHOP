@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -13,6 +13,13 @@ const plexMono = IBM_Plex_Mono({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500"],
 });
+
+// viewportFit cover so env(safe-area-inset-bottom) is non-zero on iPhones —
+// the PDP sticky bar pads itself with it to clear the home indicator.
+export const viewport: Viewport = {
+  themeColor: "#0B0A0F",
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: {
