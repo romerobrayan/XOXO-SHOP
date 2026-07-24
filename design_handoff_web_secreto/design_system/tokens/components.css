@@ -1,0 +1,46 @@
+/* Clases listas para producción — espejo de los componentes React */
+
+/* Logo */
+.logo-wordmark { font-family: var(--font-display); color: var(--vino); letter-spacing: var(--track-logo); text-transform: uppercase; }
+.logo-sello { font-family: var(--font-display); color: var(--vino); border: 1.5px solid var(--vino); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Kicker (etiqueta superior uppercase) */
+.kicker { font-family: var(--font-body); font-size: var(--text-xs); letter-spacing: var(--track-kicker); text-transform: uppercase; color: var(--cobre); font-weight: 500; }
+
+/* Botones */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); font-family: var(--font-body); font-weight: 500; font-size: var(--text-sm); letter-spacing: var(--track-boton); text-transform: uppercase; padding: 14px 28px; border-radius: var(--r-sm); border: 1px solid transparent; cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease; }
+.btn-primario { background: var(--vino); color: var(--marfil); }
+.btn-primario:hover { background: var(--vino-claro); }
+.btn-primario:active { background: var(--vino-profundo); }
+.btn-contorno { background: transparent; color: var(--vino); border-color: var(--vino); }
+.btn-contorno:hover { background: var(--arena); }
+.btn-fantasma { background: transparent; color: var(--texto-cuerpo); }
+.btn-fantasma:hover { color: var(--vino); }
+.btn-whatsapp { border: 1px solid var(--oro); color: var(--cobre); background: transparent; border-radius: var(--r-full); text-transform: none; letter-spacing: 0; font-size: var(--text-sm); }
+.btn-whatsapp:hover { background: var(--crema); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Formularios */
+.input, .select { font-family: var(--font-body); font-size: var(--text-base); color: var(--texto-titulo); background: var(--crema); border: 1px solid var(--linea); border-radius: var(--r-md); padding: 12px 16px; outline: none; width: 100%; box-sizing: border-box; }
+.input::placeholder { color: var(--texto-tenue); }
+.input:focus, .select:focus { border-color: var(--oro); box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.18); }
+.label { font-size: var(--text-sm); font-weight: 500; color: var(--texto-cuerpo); display: block; margin-bottom: var(--sp-2); }
+
+/* Badges y chips */
+.badge { display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--texto-suave); background: var(--crema); border: 1px solid var(--linea); border-radius: var(--r-full); padding: 5px 12px; }
+.badge-vino { color: var(--marfil); background: var(--vino); border-color: var(--vino); }
+.badge-oro { color: var(--tinta); background: var(--oro); border-color: var(--oro); }
+.badge-exito { color: var(--exito); border-color: var(--exito); background: transparent; }
+.badge-error { color: var(--error); border-color: var(--error); background: transparent; }
+
+/* Tarjeta de producto */
+.card-producto { background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--r-md); overflow: hidden; transition: box-shadow .2s ease, transform .2s ease; }
+.card-producto:hover { box-shadow: var(--shadow-card); transform: translateY(-2px); }
+.card-producto .media { aspect-ratio: 4 / 5; background: var(--arena); display: flex; align-items: center; justify-content: center; }
+.card-producto .cuerpo { padding: var(--sp-4); }
+.card-producto .nombre { font-family: var(--font-display); font-size: var(--text-lg); color: var(--texto-titulo); margin: 6px 0 0; }
+.precio { font-family: var(--font-body); font-weight: 600; font-size: var(--text-base); color: var(--vino); }
+
+/* Divisor con línea + centro (motivo de marca) */
+.divisor { display: flex; align-items: center; gap: var(--sp-4); color: var(--cobre); }
+.divisor::before, .divisor::after { content: ""; flex: 1; height: 1px; background: var(--linea); }

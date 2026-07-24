@@ -1,0 +1,132 @@
+<!-- @dsCard group="Web" viewport="1280x760" subtitle="Catálogo con filtros, orden y grid de productos" name="Catálogo" -->
+<!-- @startingPoint section="Pantallas" subtitle="Catálogo SECRETO con filtros" viewport="1280x760" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catálogo · SECRETO</title>
+<link rel="stylesheet" href="../design_system/styles.css">
+</head>
+<body>
+<div style="background:var(--vino);color:var(--marfil);text-align:center;font-size:var(--text-sm);padding:10px;letter-spacing:.5px;">Envíos discretos en toda Colombia · Contra entrega en Medellín</div>
+<header style="background:var(--crema);border-bottom:1px solid var(--linea);position:sticky;top:0;z-index:10;">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;">
+    <nav style="display:flex;gap:24px;font-size:var(--text-sm);font-weight:500;">
+      <a href="catalogo.html?cat=Lencería">Lencería</a><a href="catalogo.html?cat=Juguetes">Juguetes</a><a href="catalogo.html?cat=Bienestar">Bienestar</a>
+    </nav>
+    <a href="index.html" class="logo-wordmark" style="font-size:26px;">Secreto</a>
+    <div style="display:flex;gap:24px;align-items:center;font-size:var(--text-sm);font-weight:500;">
+      <a href="index.html#asesoria">Asesoría</a>
+      <a href="checkout.html" style="display:flex;gap:8px;align-items:center;">Bolsa <span id="cart" class="badge badge-vino">0</span></a>
+    </div>
+  </div>
+</header>
+
+<div style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-6) 24px;">
+  <div style="font-size:var(--text-sm);color:var(--texto-suave);"><a href="index.html">Inicio</a> / Catálogo</div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:var(--sp-4);flex-wrap:wrap;gap:var(--sp-4);">
+    <div>
+      <div class="kicker">La colección</div>
+      <h1 style="font-size:var(--text-3xl);margin:8px 0 0;">Catálogo</h1>
+    </div>
+    <label style="display:flex;align-items:center;gap:12px;font-size:var(--text-sm);color:var(--texto-suave);">Ordenar
+      <select class="select" style="width:auto;" onchange="ordenar(this.value)">
+        <option value="rel">Relevancia</option>
+        <option value="menor">Precio: menor a mayor</option>
+        <option value="mayor">Precio: mayor a menor</option>
+      </select>
+    </label>
+  </div>
+
+  <div style="display:grid;grid-template-columns:230px 1fr;gap:var(--sp-7);margin-top:var(--sp-6);align-items:start;">
+    <!-- Filtros -->
+    <aside style="display:grid;gap:var(--sp-6);position:sticky;top:96px;">
+      <div>
+        <div class="kicker" style="margin-bottom:12px;">Categoría</div>
+        <div id="f-cats" style="display:grid;gap:8px;font-size:var(--text-sm);"></div>
+      </div>
+      <div>
+        <div class="kicker" style="margin-bottom:12px;">Marca</div>
+        <div id="f-marcas" style="display:grid;gap:8px;font-size:var(--text-sm);"></div>
+      </div>
+      <div>
+        <div class="kicker" style="margin-bottom:12px;">Promesas</div>
+        <div style="display:grid;gap:8px;">
+          <span class="badge">Empaque neutro</span>
+          <span class="badge">Contra entrega Medellín</span>
+          <span class="badge badge-exito">Garantía 6 meses</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Grid -->
+    <div>
+      <div id="resumen" style="font-size:var(--text-sm);color:var(--texto-suave);margin-bottom:var(--sp-4);"></div>
+      <div id="grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-5);"></div>
+      <div style="display:flex;justify-content:center;gap:var(--sp-2);margin-top:var(--sp-7);">
+        <button class="btn btn-contorno" style="padding:10px 18px;">1</button>
+        <button class="btn btn-fantasma" style="padding:10px 18px;">2</button>
+        <button class="btn btn-fantasma" style="padding:10px 18px;">3</button>
+        <button class="btn btn-fantasma" style="padding:10px 18px;">→</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer style="background:var(--vino);color:var(--marfil);margin-top:var(--sp-8);">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-7) 24px;display:flex;justify-content:space-between;align-items:center;gap:var(--sp-6);flex-wrap:wrap;">
+    <div>
+      <div class="logo-wordmark" style="color:var(--oro);font-size:22px;">Secreto</div>
+      <div style="font-size:var(--text-sm);font-weight:300;opacity:.8;margin-top:8px;">El placer es tuyo. El secreto, nuestro.</div>
+    </div>
+    <div style="display:flex;gap:24px;font-size:var(--text-sm);">
+      <a href="#" onclick="return false" style="color:var(--marfil);">Instagram</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">WhatsApp</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">Envíos y garantía</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const productos = [
+  { nombre: 'Succionador Musa', cat: 'Bienestar', marca: 'Satisfyer', precio: 120000, badge: 'Top ventas' },
+  { nombre: 'Vibrador Aria', cat: 'Juguetes', marca: 'Svakom', precio: 145000, badge: 'Nuevo' },
+  { nombre: 'Conjunto Noche', cat: 'Lencería', marca: 'Secreto', precio: 98000 },
+  { nombre: 'Anillo Dúo', cat: 'Parejas', marca: 'Lovense', precio: 85000 },
+  { nombre: 'Egg Inalámbrico', cat: 'Juguetes', marca: 'Lovense', precio: 132000 },
+  { nombre: 'Plug Inicial', cat: 'Juguetes', marca: 'Svakom', precio: 62000 },
+  { nombre: 'Aceite de Masaje Tibio', cat: 'Bienestar', marca: 'Secreto', precio: 45000, badge: 'Nuevo' },
+  { nombre: 'Body Encaje Rubí', cat: 'Lencería', marca: 'Secreto', precio: 115000 },
+  { nombre: 'Vib Mini Viaje', cat: 'Juguetes', marca: 'Satisfyer', precio: 78000 },
+];
+const fmt = (n) => '$' + n.toLocaleString('es-CO');
+let filtroCat = new URLSearchParams(location.search).get('cat') || null;
+let filtroMarca = null, orden = 'rel';
+
+function pinta() {
+  let lista = productos.filter(p => (!filtroCat || p.cat === filtroCat) && (!filtroMarca || p.marca === filtroMarca));
+  if (orden === 'menor') lista = [...lista].sort((a, b) => a.precio - b.precio);
+  if (orden === 'mayor') lista = [...lista].sort((a, b) => b.precio - a.precio);
+  document.getElementById('resumen').textContent = lista.length + ' productos' + (filtroCat ? ' · ' + filtroCat : '') + (filtroMarca ? ' · ' + filtroMarca : '');
+  document.getElementById('grid').innerHTML = lista.map(p =>
+    '<a class="card-producto" href="producto.html" style="display:block;">' +
+    '<div class="media" style="position:relative;">' + (p.badge ? '<span class="badge badge-oro" style="position:absolute;top:12px;left:12px;">' + p.badge + '</span>' : '') +
+    '<span style="font-family:monospace;font-size:12px;color:var(--texto-tenue);">foto producto</span></div>' +
+    '<div class="cuerpo"><div class="kicker">' + p.cat + ' · ' + p.marca + '</div><div class="nombre">' + p.nombre + '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;"><span class="precio">' + fmt(p.precio) + '</span><span style="font-size:12px;color:var(--texto-tenue);">Envío discreto</span></div></div></a>').join('');
+  pintaFiltros();
+}
+function pintaFiltros() {
+  const cats = [...new Set(productos.map(p => p.cat))];
+  const marcas = [...new Set(productos.map(p => p.marca))];
+  document.getElementById('f-cats').innerHTML = cats.map(c =>
+    '<a href="#" onclick="filtroCat = filtroCat === \'' + c + '\' ? null : \'' + c + '\'; pinta(); return false;" style="color:' + (filtroCat === c ? 'var(--vino)' : 'var(--texto-cuerpo)') + ';font-weight:' + (filtroCat === c ? '600' : '400') + ';">' + c + (filtroCat === c ? ' ✕' : '') + '</a>').join('');
+  document.getElementById('f-marcas').innerHTML = marcas.map(m =>
+    '<a href="#" onclick="filtroMarca = filtroMarca === \'' + m + '\' ? null : \'' + m + '\'; pinta(); return false;" style="color:' + (filtroMarca === m ? 'var(--vino)' : 'var(--texto-cuerpo)') + ';font-weight:' + (filtroMarca === m ? '600' : '400') + ';">' + m + (filtroMarca === m ? ' ✕' : '') + '</a>').join('');
+}
+function ordenar(v) { orden = v; pinta(); }
+pinta();
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#5C1A2E"/><text x="50" y="66" text-anchor="middle" font-family="Georgia, serif" font-size="44" fill="#C9A96E">S</text></svg></template>
+</body></html>

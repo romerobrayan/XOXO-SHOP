@@ -1,0 +1,31 @@
+:root {
+  --font-display: 'Marcellus', 'Times New Roman', serif; /* logo, títulos, precios, citas */
+  --font-body: 'Archivo', 'Helvetica Neue', sans-serif;  /* interfaz y cuerpo */
+
+  /* Escala */
+  --text-xs: 12px;
+  --text-sm: 13.5px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+  --text-3xl: 44px;
+  --text-display: 64px;
+
+  /* Tracking */
+  --track-kicker: 3px;   /* kickers uppercase */
+  --track-boton: 1.5px;  /* botones uppercase */
+  --track-logo: 0.25em;  /* wordmark SECRETO */
+
+  --leading-tight: 1.15;
+  --leading-body: 1.65;
+}
+body {
+  font-family: var(--font-body);
+  color: var(--texto-cuerpo);
+  background: var(--surface-page);
+  margin: 0;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; color: var(--texto-titulo); line-height: var(--leading-tight); }
+a { color: var(--vino); text-decoration: none; }
+a:hover { color: var(--cobre); }

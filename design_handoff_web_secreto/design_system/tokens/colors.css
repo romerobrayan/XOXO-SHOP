@@ -1,0 +1,33 @@
+:root {
+  /* Base — paleta SECRETO */
+  --marfil: #F7F1E8;      /* fondo de página */
+  --crema: #FFFDF9;       /* superficie de tarjetas */
+  --arena: #F1E7D8;       /* fondos suaves, hover claro */
+  --linea: #E2D5C2;       /* bordes */
+  --vino: #5C1A2E;        /* color de marca */
+  --vino-claro: #71243C;  /* hover del vino */
+  --vino-profundo: #451423; /* pressed */
+  --oro: #C9A96E;         /* acento dorado */
+  --cobre: #8C5A3C;       /* acento secundario, kickers */
+  --tinta: #2B1B20;       /* titulares, texto fuerte */
+
+  /* Texto */
+  --texto-titulo: var(--tinta);
+  --texto-cuerpo: #4A3A40;
+  --texto-suave: #8A7364;
+  --texto-tenue: #B49C86;
+
+  /* Semánticos */
+  --surface-page: var(--marfil);
+  --surface-card: var(--crema);
+  --surface-soft: var(--arena);
+  --border-card: var(--linea);
+  --accent: var(--vino);
+  --accent-contrast: var(--marfil);
+  --exito: #587A4F;       /* confirmaciones, stock */
+  --error: #A33D3D;       /* errores, agotado */
+
+  /* Sombra cálida (única del sistema) */
+  --shadow-card: 0 2px 14px rgba(43, 27, 32, 0.07);
+  --shadow-pop: 0 12px 40px rgba(43, 27, 32, 0.16);
+}

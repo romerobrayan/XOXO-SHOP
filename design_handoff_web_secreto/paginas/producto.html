@@ -1,0 +1,124 @@
+<!-- @dsCard group="Web" viewport="1280x760" subtitle="Detalle de producto — galería, compra, acordeones y relacionados" name="Producto" -->
+<!-- @startingPoint section="Pantallas" subtitle="Página de producto SECRETO" viewport="1280x760" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Succionador Musa · SECRETO</title>
+<link rel="stylesheet" href="../design_system/styles.css">
+</head>
+<body>
+<div style="background:var(--vino);color:var(--marfil);text-align:center;font-size:var(--text-sm);padding:10px;letter-spacing:.5px;">Envíos discretos en toda Colombia · Contra entrega en Medellín</div>
+<header style="background:var(--crema);border-bottom:1px solid var(--linea);position:sticky;top:0;z-index:10;">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;">
+    <nav style="display:flex;gap:24px;font-size:var(--text-sm);font-weight:500;">
+      <a href="catalogo.html?cat=Lencería">Lencería</a><a href="catalogo.html?cat=Juguetes">Juguetes</a><a href="catalogo.html?cat=Bienestar">Bienestar</a>
+    </nav>
+    <a href="index.html" class="logo-wordmark" style="font-size:26px;">Secreto</a>
+    <div style="display:flex;gap:24px;align-items:center;font-size:var(--text-sm);font-weight:500;">
+      <a href="index.html#asesoria">Asesoría</a>
+      <a href="checkout.html" style="display:flex;gap:8px;align-items:center;">Bolsa <span id="cart" class="badge badge-vino">0</span></a>
+    </div>
+  </div>
+</header>
+
+<div style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-6) 24px;">
+  <div style="font-size:var(--text-sm);color:var(--texto-suave);"><a href="index.html">Inicio</a> / <a href="catalogo.html?cat=Bienestar">Bienestar</a> / Succionador Musa</div>
+
+  <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:var(--sp-8);margin-top:var(--sp-6);align-items:start;">
+    <!-- Galería -->
+    <div style="display:grid;gap:var(--sp-3);">
+      <div id="foto" style="aspect-ratio:4/5;background:repeating-linear-gradient(45deg,var(--arena),var(--arena) 14px,#EBDFCC 14px,#EBDFCC 28px);border-radius:var(--r-lg);display:flex;align-items:center;justify-content:center;position:relative;">
+        <span class="badge badge-oro" style="position:absolute;top:16px;left:16px;">Top ventas</span>
+        <span style="font-family:monospace;font-size:13px;color:var(--texto-suave);">foto principal · producto sobre arena</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3);">
+        <div style="aspect-ratio:1;background:var(--arena);border-radius:var(--r-md);border:2px solid var(--oro);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;color:var(--texto-suave);">vista 1</div>
+        <div style="aspect-ratio:1;background:var(--arena);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;color:var(--texto-tenue);">vista 2</div>
+        <div style="aspect-ratio:1;background:var(--arena);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;color:var(--texto-tenue);">empaque</div>
+        <div style="aspect-ratio:1;background:var(--arena);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;color:var(--texto-tenue);">tamaño</div>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div style="display:grid;gap:var(--sp-4);">
+      <div class="kicker">Bienestar · Satisfyer</div>
+      <h1 style="font-size:var(--text-3xl);margin:0;">Succionador Musa</h1>
+      <div style="display:flex;align-items:center;gap:var(--sp-4);">
+        <span class="precio" style="font-size:var(--text-xl);">$120.000</span>
+        <span class="badge badge-exito">Disponible</span>
+      </div>
+      <p style="font-weight:300;line-height:var(--leading-body);margin:0;">Suave, silencioso y recargable. Diez intensidades de succión sin contacto para descubrir a tu ritmo — solo o en pareja. Resistente al agua (IPX7) y con cuerpo de silicona body-safe.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <span class="badge">Empaque neutro</span>
+        <span class="badge">Remitente genérico</span>
+        <span class="badge">Garantía 6 meses</span>
+      </div>
+      <div style="display:flex;gap:var(--sp-3);align-items:stretch;margin-top:var(--sp-2);">
+        <div style="display:flex;align-items:center;border:1px solid var(--linea);border-radius:var(--r-sm);background:var(--crema);">
+          <button onclick="cant(-1)" class="btn btn-fantasma" style="padding:10px 16px;">−</button>
+          <span id="n" style="min-width:32px;text-align:center;font-weight:600;">1</span>
+          <button onclick="cant(1)" class="btn btn-fantasma" style="padding:10px 16px;">+</button>
+        </div>
+        <button class="btn btn-primario" style="flex:1;" onclick="agregar()">Agregar al carrito</button>
+      </div>
+      <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=573168667068&text=Hola%2C%20tengo%20una%20pregunta%20sobre%20Musa" target="_blank" rel="noreferrer" style="justify-content:center;">¿Dudas? Pregunta en privado por WhatsApp →</a>
+
+      <!-- Acordeones -->
+      <div style="border-top:1px solid var(--linea);margin-top:var(--sp-3);">
+        <details open style="border-bottom:1px solid var(--linea);padding:var(--sp-4) 0;">
+          <summary style="font-family:var(--font-display);font-size:var(--text-lg);color:var(--texto-titulo);cursor:pointer;">Así llega tu pedido</summary>
+          <p style="font-weight:300;line-height:var(--leading-body);margin:12px 0 0;">Caja neutra sin logos ni descripción del contenido, remitente genérico y factura discreta. Nadie sabrá qué llegó — esa es la promesa.</p>
+        </details>
+        <details style="border-bottom:1px solid var(--linea);padding:var(--sp-4) 0;">
+          <summary style="font-family:var(--font-display);font-size:var(--text-lg);color:var(--texto-titulo);cursor:pointer;">Especificaciones</summary>
+          <p style="font-weight:300;line-height:var(--leading-body);margin:12px 0 0;">Silicona body-safe · 10 intensidades · Carga USB magnética · 60 min de uso · IPX7 sumergible · Nivel de ruido &lt; 45 dB.</p>
+        </details>
+        <details style="border-bottom:1px solid var(--linea);padding:var(--sp-4) 0;">
+          <summary style="font-family:var(--font-display);font-size:var(--text-lg);color:var(--texto-titulo);cursor:pointer;">Cuidado y limpieza</summary>
+          <p style="font-weight:300;line-height:var(--leading-body);margin:12px 0 0;">Lava con agua tibia y jabón neutro antes y después de cada uso. Usa lubricante a base de agua. Guárdalo en su bolsa de tela.</p>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- Relacionados -->
+  <div style="margin-top:var(--sp-8);">
+    <div class="divisor"><span class="kicker" style="white-space:nowrap;">También te puede gustar</span></div>
+    <div id="rel" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-5);margin-top:var(--sp-6);"></div>
+  </div>
+</div>
+
+<footer style="background:var(--vino);color:var(--marfil);margin-top:var(--sp-8);">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-7) 24px;display:flex;justify-content:space-between;align-items:center;gap:var(--sp-6);flex-wrap:wrap;">
+    <div>
+      <div class="logo-wordmark" style="color:var(--oro);font-size:22px;">Secreto</div>
+      <div style="font-size:var(--text-sm);font-weight:300;opacity:.8;margin-top:8px;">El placer es tuyo. El secreto, nuestro.</div>
+    </div>
+    <div style="display:flex;gap:24px;font-size:var(--text-sm);">
+      <a href="#" onclick="return false" style="color:var(--marfil);">Instagram</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">WhatsApp</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">Envíos y garantía</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+let n = 1, carrito = 0;
+function cant(d) { n = Math.max(1, n + d); document.getElementById('n').textContent = n; }
+function agregar() { carrito += n; document.getElementById('cart').textContent = carrito; }
+const rel = [
+  { nombre: 'Aceite de Masaje Tibio', cat: 'Bienestar', precio: '$45.000' },
+  { nombre: 'Vib Mini Viaje', cat: 'Juguetes', precio: '$78.000' },
+  { nombre: 'Anillo Dúo', cat: 'Parejas', precio: '$85.000' },
+  { nombre: 'Conjunto Noche', cat: 'Lencería', precio: '$98.000' },
+];
+document.getElementById('rel').innerHTML = rel.map(p =>
+  '<a class="card-producto" href="producto.html" style="display:block;">' +
+  '<div class="media"><span style="font-family:monospace;font-size:12px;color:var(--texto-tenue);">foto producto</span></div>' +
+  '<div class="cuerpo"><div class="kicker">' + p.cat + '</div><div class="nombre">' + p.nombre + '</div>' +
+  '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;"><span class="precio">' + p.precio + '</span><span style="font-size:12px;color:var(--texto-tenue);">Envío discreto</span></div></div></a>').join('');
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#5C1A2E"/><text x="50" y="66" text-anchor="middle" font-family="Georgia, serif" font-size="44" fill="#C9A96E">S</text></svg></template>
+</body></html>

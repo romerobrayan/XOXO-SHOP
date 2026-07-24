@@ -1,0 +1,149 @@
+<!-- @dsCard group="Web" viewport="1280x760" subtitle="Home de la tienda — header, héroe, categorías, catálogo y footer" name="Tienda web" -->
+<!-- @startingPoint section="Pantallas" subtitle="Home e-commerce SECRETO completa" viewport="1280x760" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SECRETO · Boutique Erótica</title>
+<link rel="stylesheet" href="../design_system/styles.css">
+</head>
+<body>
+<!-- Barra anuncio -->
+<div style="background:var(--vino);color:var(--marfil);text-align:center;font-size:var(--text-sm);padding:10px;letter-spacing:.5px;">Envíos discretos en toda Colombia · Contra entrega en Medellín</div>
+
+<!-- Header -->
+<header style="background:var(--crema);border-bottom:1px solid var(--linea);position:sticky;top:0;z-index:10;">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;">
+    <nav style="display:flex;gap:24px;font-size:var(--text-sm);font-weight:500;">
+      <a href="catalogo.html?cat=Lencería">Lencería</a><a href="catalogo.html?cat=Juguetes">Juguetes</a><a href="catalogo.html?cat=Bienestar">Bienestar</a>
+    </nav>
+    <div class="logo-wordmark" style="font-size:26px;">Secreto</div>
+    <div style="display:flex;gap:24px;align-items:center;font-size:var(--text-sm);font-weight:500;">
+      <a href="#asesoria">Asesoría</a>
+      <a href="checkout.html" style="display:flex;gap:8px;align-items:center;">Bolsa <span id="cart" class="badge badge-vino">0</span></a>
+    </div>
+  </div>
+</header>
+
+<!-- Héroe -->
+<section style="background:linear-gradient(170deg,var(--crema) 0%,var(--arena) 100%);border-bottom:1px solid var(--linea);">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;display:grid;grid-template-columns:1.1fr 1fr;gap:var(--sp-8);align-items:center;padding:var(--sp-9) 24px;">
+    <div>
+      <div class="kicker">Boutique Erótica · antes XOXO</div>
+      <h1 style="font-size:var(--text-display);margin:var(--sp-4) 0;">El placer es tuyo.<br>El secreto, nuestro.</h1>
+      <p style="font-size:var(--text-lg);font-weight:300;line-height:var(--leading-body);max-width:46ch;margin:0 0 var(--sp-6);">Productos curados para tu intimidad, con asesoría honesta y empaque neutro del clic a la puerta.</p>
+      <div style="display:flex;gap:var(--sp-4);align-items:center;flex-wrap:wrap;">
+        <a class="btn btn-primario" href="#catalogo">Ver colección</a>
+        <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=573168667068&text=Hola%2C%20quiero%20una%20asesor%C3%ADa" target="_blank" rel="noreferrer">Asesoría privada por WhatsApp →</a>
+      </div>
+    </div>
+    <div style="aspect-ratio:4/5;max-height:460px;background:repeating-linear-gradient(45deg,var(--arena),var(--arena) 14px,#EBDFCC 14px,#EBDFCC 28px);border-radius:var(--r-lg);display:flex;align-items:center;justify-content:center;">
+      <span style="font-family:monospace;font-size:13px;color:var(--texto-suave);">foto editorial · lencería</span>
+    </div>
+  </div>
+</section>
+
+<!-- Categorías -->
+<section style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-8) 24px var(--sp-5);">
+  <div class="divisor"><span class="kicker" style="white-space:nowrap;">Explora por categoría</span></div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-4);margin-top:var(--sp-6);" id="cats"></div>
+</section>
+
+<!-- Catálogo -->
+<section id="catalogo" style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-6) 24px var(--sp-8);">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--sp-6);">
+    <h2 style="font-size:var(--text-2xl);margin:0;">Top ventas</h2>
+    <a href="catalogo.html" style="font-size:var(--text-sm);font-weight:500;">Ver todo →</a>
+  </div>
+  <div id="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-5);"></div>
+</section>
+
+<!-- Pilares -->
+<section style="background:var(--crema);border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-6);padding:var(--sp-7) 24px;">
+    <div><h3 style="font-size:var(--text-xl);margin:0 0 8px;">Confianza primero</h3><p style="font-weight:300;margin:0;line-height:var(--leading-body);">Pagos seguros, contra entrega y garantía real en cada pedido.</p></div>
+    <div><h3 style="font-size:var(--text-xl);margin:0 0 8px;">Experiencia de regalo</h3><p style="font-weight:300;margin:0;line-height:var(--leading-body);">Neutro por fuera, hermoso por dentro. Nadie sabrá qué llegó en la caja.</p></div>
+    <div><h3 style="font-size:var(--text-xl);margin:0 0 8px;">Para todos</h3><p style="font-weight:300;margin:0;line-height:var(--leading-body);">Mujeres, hombres, parejas y comunidad LGBTQ+, sin juzgar.</p></div>
+  </div>
+</section>
+
+<!-- Asesoría / newsletter -->
+<section id="asesoria" style="max-width:720px;margin:0 auto;padding:var(--sp-8) 24px;text-align:center;">
+  <h2 style="font-size:var(--text-2xl);margin:0 0 var(--sp-3);">¿No sabes por dónde empezar?</h2>
+  <p style="font-weight:300;line-height:var(--leading-body);margin:0 0 var(--sp-6);">Déjanos tu correo y recibe la guía para principiantes, o escríbenos directo: la asesoría es privada y sin compromiso.</p>
+  <form onsubmit="suscribir(event)" style="display:flex;gap:var(--sp-3);max-width:440px;margin:0 auto;">
+    <input class="input" id="email" type="email" required placeholder="tu@correo.com">
+    <button class="btn btn-primario" type="submit" style="white-space:nowrap;">Recibir guía</button>
+  </form>
+  <div id="ok" class="badge badge-exito" style="display:none;margin-top:var(--sp-4);">Enviada — revisa tu correo</div>
+</section>
+
+<!-- Footer -->
+<footer style="background:var(--vino);color:var(--marfil);">
+  <div style="max-width:var(--ancho-contenido);margin:0 auto;padding:var(--sp-7) 24px;display:flex;justify-content:space-between;align-items:center;gap:var(--sp-6);flex-wrap:wrap;">
+    <div>
+      <div class="logo-wordmark" style="color:var(--oro);font-size:22px;">Secreto</div>
+      <div style="font-size:var(--text-sm);font-weight:300;opacity:.8;margin-top:8px;">El placer es tuyo. El secreto, nuestro.</div>
+    </div>
+    <div style="display:flex;gap:24px;font-size:var(--text-sm);">
+      <a href="#" onclick="return false" style="color:var(--marfil);">Instagram</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">WhatsApp</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">Envíos y garantía</a>
+      <a href="#" onclick="return false" style="color:var(--marfil);">Privacidad</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Modal producto -->
+<div id="modal" style="display:none;position:fixed;inset:0;background:rgba(43,27,32,.5);z-index:20;align-items:center;justify-content:center;padding:24px;" onclick="cerrar(event)">
+  <div style="background:var(--crema);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);max-width:760px;width:100%;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;" onclick="event.stopPropagation()">
+    <div style="aspect-ratio:4/5;background:repeating-linear-gradient(45deg,var(--arena),var(--arena) 14px,#EBDFCC 14px,#EBDFCC 28px);display:flex;align-items:center;justify-content:center;"><span style="font-family:monospace;font-size:12px;color:var(--texto-suave);">foto producto</span></div>
+    <div style="padding:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-4);">
+      <div class="kicker" id="m-kicker"></div>
+      <h2 style="margin:0;font-size:var(--text-2xl);" id="m-nombre"></h2>
+      <div class="precio" style="font-size:var(--text-xl);" id="m-precio"></div>
+      <p style="font-weight:300;line-height:var(--leading-body);margin:0;" id="m-desc"></p>
+      <div style="display:flex;gap:8px;"><span class="badge">Empaque neutro</span><span class="badge">Garantía 6 meses</span></div>
+      <button class="btn btn-primario" onclick="agregar();cerrar()">Agregar al carrito</button>
+      <a class="btn btn-contorno" href="producto.html">Ver detalle completo</a>
+      <a class="btn btn-whatsapp" href="https://api.whatsapp.com/send?phone=573168667068" target="_blank" rel="noreferrer">Preguntar por WhatsApp →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const cats = ['Lencería','Juguetes','Bienestar','Parejas'];
+document.getElementById('cats').innerHTML = cats.map(c =>
+  '<a href="#catalogo" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px;background:var(--crema);border:1px solid var(--linea);border-radius:var(--r-md);">' +
+  '<span style="width:64px;height:64px;border-radius:50%;background:var(--arena);border:1px solid var(--oro);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:26px;color:var(--vino);">' + c[0] + '</span>' +
+  '<span style="font-size:var(--text-sm);font-weight:500;color:var(--texto-cuerpo);">' + c + '</span></a>').join('');
+
+const productos = [
+  { kicker: 'Bienestar', nombre: 'Succionador Musa', precio: '$120.000', badge: 'Top ventas', desc: 'Suave, silencioso y recargable. Diez intensidades para descubrir a tu ritmo.' },
+  { kicker: 'Juguetes', nombre: 'Vibrador Aria', precio: '$145.000', badge: 'Nuevo', desc: 'Diez modos, silicona body-safe y carga USB. Pensado para uso en pareja o en solitario.' },
+  { kicker: 'Lencería', nombre: 'Conjunto Noche', precio: '$98.000', badge: '', desc: 'Encaje suave con detalles en satén. Tallas S a XL.' },
+  { kicker: 'Parejas', nombre: 'Anillo Dúo', precio: '$85.000', badge: '', desc: 'Vibración compartida, silicona suave y control remoto.' },
+];
+document.getElementById('grid').innerHTML = productos.map((p, i) =>
+  '<div class="card-producto" style="cursor:pointer;" onclick="abrir(' + i + ')">' +
+  '<div class="media" style="position:relative;">' + (p.badge ? '<span class="badge badge-oro" style="position:absolute;top:12px;left:12px;">' + p.badge + '</span>' : '') +
+  '<span style="font-family:monospace;font-size:12px;color:var(--texto-tenue);">foto producto</span></div>' +
+  '<div class="cuerpo"><div class="kicker">' + p.kicker + '</div><div class="nombre">' + p.nombre + '</div>' +
+  '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;"><span class="precio">' + p.precio + '</span><span style="font-size:12px;color:var(--texto-tenue);">Envío discreto</span></div></div></div>').join('');
+
+let n = 0;
+function agregar() { document.getElementById('cart').textContent = ++n; }
+function abrir(i) {
+  const p = productos[i];
+  document.getElementById('m-kicker').textContent = p.kicker;
+  document.getElementById('m-nombre').textContent = p.nombre;
+  document.getElementById('m-precio').textContent = p.precio;
+  document.getElementById('m-desc').textContent = p.desc;
+  document.getElementById('modal').style.display = 'flex';
+}
+function cerrar() { document.getElementById('modal').style.display = 'none'; }
+function suscribir(e) { e.preventDefault(); document.getElementById('ok').style.display = 'inline-flex'; }
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#5C1A2E"/><text x="50" y="66" text-anchor="middle" font-family="Georgia, serif" font-size="44" fill="#C9A96E">S</text></svg></template>
+</body></html>

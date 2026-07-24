@@ -1,0 +1,34 @@
+<!-- @dsCard group="Components" viewport="700x520" subtitle="Botones, formularios, badges y tarjeta de producto" name="Core" -->
+<!DOCTYPE html><html><head><link rel="stylesheet" href="../../styles.css"></head>
+<body style="padding:20px 24px;background:var(--marfil);display:grid;gap:20px;">
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+  <button class="btn btn-primario">Agregar al carrito</button>
+  <button class="btn btn-contorno">Ver colección</button>
+  <button class="btn btn-fantasma">Seguir mirando</button>
+  <button class="btn btn-primario" disabled>Agotado</button>
+</div>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+  <a class="btn btn-whatsapp" href="#">Asesoría privada por WhatsApp →</a>
+  <span class="badge">Empaque neutro</span>
+  <span class="badge badge-vino">Nuevo</span>
+  <span class="badge badge-oro">Top ventas</span>
+  <span class="badge badge-exito">Disponible</span>
+  <span class="badge badge-error">Agotado</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:520px;">
+  <label><span class="label">Correo</span><input class="input" placeholder="tu@correo.com"></label>
+  <label><span class="label">Categoría</span><select class="select"><option>Lencería</option><option>Juguetes</option><option>Bienestar</option></select></label>
+</div>
+<div style="display:flex;gap:16px;">
+  <div class="card-producto" style="width:210px;">
+    <div class="media" style="position:relative;"><span class="badge badge-oro" style="position:absolute;top:10px;left:10px;">Top ventas</span><span style="font-family:monospace;font-size:11px;color:var(--texto-tenue);">foto producto</span></div>
+    <div class="cuerpo"><div class="kicker">Bienestar</div><div class="nombre">Succionador Musa</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;"><span class="precio">$120.000</span><span style="font-size:11px;color:var(--texto-tenue);">Envío discreto</span></div></div>
+  </div>
+  <div class="card-producto" style="width:210px;">
+    <div class="media"><span style="font-family:monospace;font-size:11px;color:var(--texto-tenue);">foto producto</span></div>
+    <div class="cuerpo"><div class="kicker">Juguetes · Nuevo</div><div class="nombre">Vibrador Aria</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;"><span class="precio">$145.000</span><span style="font-size:11px;color:var(--texto-tenue);">Envío discreto</span></div></div>
+  </div>
+</div>
+</body></html>
