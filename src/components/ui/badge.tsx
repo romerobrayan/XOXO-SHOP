@@ -3,16 +3,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+// SECRETO badges — one of the few pill shapes in the system. Tones mirror
+// tokens/components.css: base, vino (contador de bolsa), oro (destacados),
+// exito (disponible / garantía), error (agotado).
 const badgeVariants = cva(
-  "inline-flex items-center rounded-md px-2 py-0.5 text-micro uppercase",
+  "inline-flex items-center rounded-full border px-3 py-[5px] text-[11px] tracking-[1px] uppercase",
   {
     variants: {
       variant: {
-        default: "bg-surface text-bone",
-        outline: "border border-bone/20 text-bone",
-        // Availability signals — a primary signal on cards and the PDP.
-        stock: "bg-surface text-blush",
-        out: "bg-surface text-bone/50",
+        default: "border-linea bg-crema text-suave",
+        vino: "border-vino bg-vino text-marfil",
+        oro: "border-oro bg-oro text-tinta",
+        exito: "border-exito bg-transparent text-exito",
+        error: "border-error bg-transparent text-error",
       },
     },
     defaultVariants: {

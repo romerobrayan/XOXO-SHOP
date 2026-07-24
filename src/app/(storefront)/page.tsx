@@ -1,94 +1,128 @@
 import Link from "next/link";
 
+import { ProductImagePlaceholder } from "@/components/commerce/ProductImagePlaceholder";
+import { WhatsAppCta } from "@/components/commerce/WhatsAppCta";
 import { Button } from "@/components/ui/button";
-import { BrandTile } from "@/features/catalog/components/BrandTile";
 import { CategoryTile } from "@/features/catalog/components/CategoryTile";
-import { DiscretionBlock } from "@/features/catalog/components/DiscretionBlock";
-import { FeaturedProduct } from "@/features/catalog/components/FeaturedProduct";
-import { ProductCard } from "@/features/catalog/components/ProductCard";
-import { getBrands, getCategories, getProducts } from "@/features/catalog/queries";
+import { HomeShowcase } from "@/features/catalog/components/HomeShowcase";
+import { getCategories, getProducts } from "@/features/catalog/queries";
+import { NewsletterForm } from "@/features/home/components/NewsletterForm";
 
-const FEATURED_SLUG = "lovense-lush-3";
-
-// Home — a shopwindow, not a brochure: real products above the fold behind a
-// one-line utility strip, then promotions, discovery grid, categories, and
-// brands. No slogan hero. The single glowing element is the featured CTA.
+// Home per the handoff: héroe con el slogan, categorías con el divisor de
+// marca, "Top ventas" con modal de producto, pilares, asesoría/newsletter.
+// El héroe es la única zona con degradado; todo lo demás son bandas planas.
 export default async function HomePage() {
-  const [products, brands, categories] = await Promise.all([
+  const [products, categories] = await Promise.all([
     getProducts(),
-    getBrands(),
     getCategories(),
   ]);
 
-  const featured =
-    products.find((p) => p.slug === FEATURED_SLUG) ?? products[0];
-  const promos = products.filter(
-    (p) => p.discountPercent !== null && p.availability.state !== "out",
-  );
-  const grid = products
-    .filter((p) => p.id !== featured?.id && p.availability.state !== "out")
+  const topVentas = products
+    .filter((p) => p.availability.state !== "out")
     .slice(0, 4);
 
   return (
-    <div className="flex flex-col gap-10">
-      <h1 className="sr-only">XOXO — Tienda de productos para adultos</h1>
-
-      <p className="text-small text-bone/70">
-        Envío discreto a toda Colombia. Contra entrega en Medellín.
-      </p>
-
-      {featured && <FeaturedProduct product={featured} />}
-
-      {promos.length > 0 && (
-        <section aria-labelledby="promos-heading">
-          <h2 id="promos-heading" className="text-title text-bone">
-            Promociones
-          </h2>
-          <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
-            {promos.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+    <div>
+      {/* Héroe */}
+      <section className="border-b border-linea bg-[linear-gradient(170deg,var(--color-crema)_0%,var(--color-arena)_100%)]">
+        <div className="mx-auto grid w-full max-w-content items-center gap-10 px-4 py-14 md:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:py-24">
+          <div>
+            <p className="kicker">Boutique Erótica · antes XOXO</p>
+            <h1 className="mt-4 text-[clamp(40px,7vw,64px)] leading-[1.12]">
+              El placer es tuyo.
+              <br />
+              El secreto, nuestro.
+            </h1>
+            <p className="mt-4 max-w-[46ch] text-lg font-light">
+              Productos curados para tu intimidad, con asesoría honesta y
+              empaque neutro del clic a la puerta.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Button asChild>
+                <Link href="#catalogo">Ver colección</Link>
+              </Button>
+              <WhatsAppCta message="Hola, quiero una asesoría">
+                Asesoría privada por WhatsApp
+              </WhatsAppCta>
+            </div>
           </div>
-        </section>
-      )}
-
-      <section aria-labelledby="available-heading">
-        <h2 id="available-heading" className="text-title text-bone">
-          Disponibles ahora
-        </h2>
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
-          {grid.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+          <ProductImagePlaceholder
+            name="Foto editorial · lencería"
+            className="hidden w-full max-w-[368px] justify-self-end lg:flex"
+          />
         </div>
-        <Button variant="default" className="mt-6 w-full sm:w-auto" asChild>
-          <Link href="/tienda">Ver toda la tienda</Link>
-        </Button>
       </section>
 
-      <section aria-labelledby="categories-heading">
-        <h2 id="categories-heading" className="text-title text-bone">
-          Categorías
-        </h2>
-        <div className="mt-4 flex flex-col gap-3 sm:grid sm:grid-cols-3">
+      {/* Categorías */}
+      <section className="mx-auto w-full max-w-content px-4 pt-16 pb-6 md:px-6">
+        <h2 className="sr-only">Categorías</h2>
+        <div className="divisor">
+          <span className="kicker whitespace-nowrap">
+            Explora por categoría
+          </span>
+        </div>
+        <div className="mt-8 grid grid-cols-3 gap-3 md:gap-4">
           {categories.map((category) => (
             <CategoryTile key={category.id} category={category} />
           ))}
         </div>
       </section>
 
-      <section aria-labelledby="brands-heading">
-        <h2 id="brands-heading" className="text-title text-bone">
-          Marcas
-        </h2>
-        <div className="mt-4 flex flex-col gap-3 sm:grid sm:grid-cols-3">
-          {brands.map((brand) => (
-            <BrandTile key={brand.id} brand={brand} />
-          ))}
+      {/* Top ventas */}
+      <section
+        id="catalogo"
+        className="mx-auto w-full max-w-content px-4 pt-10 pb-16 md:px-6"
+      >
+        <div className="mb-8 flex items-baseline justify-between gap-4">
+          <h2 className="text-2xl">Top ventas</h2>
+          <Link
+            href="/tienda"
+            className="text-sm font-medium text-vino hover:text-cobre"
+          >
+            Ver todo →
+          </Link>
+        </div>
+        <HomeShowcase products={topVentas} />
+      </section>
+
+      {/* Pilares */}
+      <section className="border-y border-linea bg-crema">
+        <h2 className="sr-only">Nuestra promesa</h2>
+        <div className="mx-auto grid w-full max-w-content gap-8 px-4 py-12 md:grid-cols-3 md:px-6">
+          <div>
+            <h3 className="text-xl">Confianza primero</h3>
+            <p className="mt-2 font-light">
+              Pagos seguros, contra entrega y garantía real en cada pedido.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-xl">Experiencia de regalo</h3>
+            <p className="mt-2 font-light">
+              Neutro por fuera, hermoso por dentro. Nadie sabrá qué llegó en la
+              caja.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-xl">Para todos</h3>
+            <p className="mt-2 font-light">
+              Mujeres, hombres, parejas y comunidad LGBTQ+, sin juzgar.
+            </p>
+          </div>
         </div>
       </section>
 
-      <DiscretionBlock />
+      {/* Asesoría / newsletter */}
+      <section
+        id="asesoria"
+        className="mx-auto w-full max-w-[720px] px-4 py-16 text-center md:px-6"
+      >
+        <h2 className="text-2xl">¿No sabes por dónde empezar?</h2>
+        <p className="mx-auto mt-3 mb-8 font-light">
+          Déjanos tu correo y recibe la guía para principiantes, o escríbenos
+          directo: la asesoría es privada y sin compromiso.
+        </p>
+        <NewsletterForm />
+      </section>
     </div>
   );
 }

@@ -18,7 +18,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn("fixed inset-0 z-50 bg-ink/80", className)}
+      className={cn("fixed inset-0 z-50 bg-tinta/50", className)}
       {...props}
     />
   );
@@ -38,7 +38,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-surface p-6 text-bone shadow-lg",
+          "fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-crema p-6 text-cuerpo shadow-pop",
           className,
         )}
         {...props}
@@ -47,9 +47,9 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="absolute top-1 right-1 flex size-11 items-center justify-center rounded-md text-bone/60 hover:text-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bone"
+            className="absolute top-1 right-1 flex size-11 items-center justify-center text-suave transition-colors hover:text-vino"
           >
-            <XIcon className="size-5" />
+            <XIcon className="size-5" strokeWidth={1.5} />
             <span className="sr-only">Cerrar</span>
           </DialogPrimitive.Close>
         )}
@@ -72,7 +72,10 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+      className={cn(
+        "mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        className,
+      )}
       {...props}
     />
   );
@@ -85,7 +88,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-title", className)}
+      className={cn("font-display text-xl font-normal text-tinta", className)}
       {...props}
     />
   );
@@ -98,7 +101,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-body text-bone/80", className)}
+      className={cn("text-base font-light text-cuerpo", className)}
       {...props}
     />
   );

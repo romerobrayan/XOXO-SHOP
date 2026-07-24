@@ -1,34 +1,28 @@
-// Placeholder for pending product photography — see docs/DESIGN_BRIEF_PDP.md.
-// Rules: never prettier than the real asset, varies by slug-derived tint, and
-// honestly labeled so the client never mistakes it for a design choice.
-import { tintFor } from "@/lib/tint";
+import { cn } from "@/lib/utils";
 
+// Placeholder for pending product photography: diagonal arena stripes with a
+// monospace label, per the brand guide — never drawn products, never stock
+// photos, and honestly labeled so the client never mistakes it for a design
+// choice. Real photos arrive at 4:5 on an arena background.
 export function ProductImagePlaceholder({
   name,
-  seed,
+  className,
 }: {
   name: string;
-  seed: string;
+  className?: string;
 }) {
-  const tint = tintFor(seed);
   return (
     <div
       role="img"
       aria-label={`Imagen pendiente: ${name}`}
-      className="relative aspect-[4/5] w-full overflow-hidden rounded-xl bg-surface"
+      className={cn(
+        "stripes-placeholder flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-lg",
+        className,
+      )}
     >
-      <div
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          background: `radial-gradient(120% 90% at 50% 15%, ${tint}, transparent 70%)`,
-        }}
-      />
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-        <span className="font-mono text-micro uppercase text-bone/60">
-          Imagen pendiente
-        </span>
-        <span className="font-sans text-small text-bone/70">{name}</span>
-      </div>
+      <span className="px-4 text-center font-mono text-xs text-suave">
+        Imagen pendiente · {name}
+      </span>
     </div>
   );
 }

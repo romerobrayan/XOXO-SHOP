@@ -4,23 +4,23 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-// The "neon" variant is the one glowing element per view — never render two
-// neon buttons on the same screen. See CLAUDE.md "Design tokens".
+// SECRETO buttons: uppercase Archivo medium with 1.5px tracking, 2px radius.
+// default = .btn-primario (vino), outline = .btn-contorno, ghost = .btn-fantasma.
+// Pills are reserved for chips, badges, and the WhatsApp CTA — never here.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bone disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 rounded-sm border border-transparent text-sm font-medium tracking-boton uppercase transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cobre disabled:pointer-events-none disabled:opacity-45",
   {
     variants: {
       variant: {
-        default: "bg-bone text-ink hover:bg-bone/90",
-        neon: "bg-neon text-ink shadow-[0_0_24px_rgba(255,43,194,0.45)] hover:bg-neon/90",
-        outline: "border border-bone/20 bg-transparent text-bone hover:bg-surface",
-        ghost: "text-bone hover:bg-surface",
+        default: "bg-vino text-marfil hover:bg-vino-claro active:bg-vino-profundo",
+        outline: "border-vino bg-transparent text-vino hover:bg-arena",
+        ghost: "text-cuerpo hover:text-vino",
       },
       size: {
-        default: "h-12 px-6 text-body",
+        default: "h-12 px-7",
         // 44px minimum — thumb-first storefront, no sub-44 tap targets.
-        sm: "h-11 px-4 text-small",
-        icon: "size-12",
+        sm: "h-11 px-5",
+        icon: "size-11",
       },
     },
     defaultVariants: {

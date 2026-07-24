@@ -1,33 +1,23 @@
 import Link from "next/link";
 
-import { tintFor } from "@/lib/tint";
 import type { CategorySummary } from "../dto";
 
-// Visual category surface for the home: the same slug-derived tint system as
-// the image placeholder, so tiles vary without pretending to have photography.
-// When real category imagery exists it replaces the tint layer.
+// Tarjeta de categoría del handoff: círculo arena con inicial Marcellus vino
+// y borde oro — el estilo "sello" de la marca — más el nombre. Sin conteos ni
+// fotos: la marca se apoya en tipografía.
 export function CategoryTile({ category }: { category: CategorySummary }) {
-  const tint = tintFor(category.slug);
-  const count =
-    category.productCount === 1
-      ? "1 producto"
-      : `${category.productCount} productos`;
   return (
     <Link
       href={`/tienda?categoria=${category.slug}`}
-      className="relative flex min-h-24 flex-col justify-center gap-1 overflow-hidden rounded-xl bg-surface p-5"
+      className="flex flex-col items-center gap-3 rounded-md border border-linea bg-crema p-4 text-center transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-card md:p-6"
     >
       <span
         aria-hidden="true"
-        className="absolute inset-0 opacity-[0.09]"
-        style={{
-          background: `radial-gradient(140% 120% at 85% 20%, ${tint}, transparent 65%)`,
-        }}
-      />
-      <span className="relative text-heading text-bone">{category.name}</span>
-      <span className="tabular relative font-mono text-small text-bone/60">
-        {count}
+        className="flex size-14 items-center justify-center rounded-full border border-oro bg-arena font-display text-[26px] text-vino md:size-16"
+      >
+        {category.name.charAt(0)}
       </span>
+      <span className="text-sm font-medium text-cuerpo">{category.name}</span>
     </Link>
   );
 }

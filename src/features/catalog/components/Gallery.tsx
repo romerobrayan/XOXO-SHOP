@@ -1,23 +1,27 @@
 import { ProductImagePlaceholder } from "@/components/commerce/ProductImagePlaceholder";
 import type { MediaDTO } from "../dto";
 
-// Product gallery. Phase 0 has no real photography, so this renders the
-// honest placeholder; the media path below is structurally ready for when
-// Cloudinary assets exist (images and video in one ordered reel — see
-// ProductMedia in the schema). Video is poster + tap-to-play with native
-// controls, muted by default, never autoplay: the audience arrives on mobile
-// data, and autoplay also fights prefers-reduced-motion.
-export function Gallery({ media, name, seed }: { media: MediaDTO[]; name: string; seed: string }) {
+// Galería del producto: imagen principal 4:5 con radius 6px. Fase 0 no tiene
+// fotografía real, así que rinde el placeholder de rayas; la ruta de media
+// queda estructuralmente lista para Cloudinary (imágenes y video en un reel
+// ordenado). Video es tap-to-play con controles nativos, nunca autoplay.
+export function Gallery({
+  media,
+  name,
+}: {
+  media: MediaDTO[];
+  name: string;
+}) {
   if (media.length === 0) {
-    return <ProductImagePlaceholder name={name} seed={seed} />;
+    return <ProductImagePlaceholder name={name} />;
   }
   return (
-    <div className="scroll-row -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4">
+    <div className="scroll-row -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 md:mx-0 md:px-0">
       {media.map((item) => (
         <div key={item.id} className="w-full shrink-0 snap-center">
           {item.type === "VIDEO" ? (
             <video
-              className="aspect-[4/5] w-full rounded-xl bg-surface object-cover"
+              className="aspect-[4/5] w-full rounded-lg bg-arena object-cover"
               src={item.url}
               poster={item.posterUrl ?? undefined}
               controls
@@ -28,7 +32,7 @@ export function Gallery({ media, name, seed }: { media: MediaDTO[]; name: string
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- Cloudinary delivers pre-sized assets
             <img
-              className="aspect-[4/5] w-full rounded-xl bg-surface object-cover"
+              className="aspect-[4/5] w-full rounded-lg bg-arena object-cover"
               src={item.url}
               alt={item.alt}
             />

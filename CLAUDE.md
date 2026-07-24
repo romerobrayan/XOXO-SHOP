@@ -1,4 +1,4 @@
-# CLAUDE.md — XoXo Store
+# CLAUDE.md — SECRETO (antes XoXo Store)
 
 Guidance for Claude Code when working in this repository.
 Full specification: `docs/XOXO_TECHNICAL_SPEC.md`
@@ -8,6 +8,12 @@ Full specification: `docs/XOXO_TECHNICAL_SPEC.md`
 Ecommerce storefront for **XOXO Sex Shop** (`@xoxo.sex0`), an adult products retailer
 based in Medellín, Colombia, migrating off Instagram + WhatsApp DMs. ~29.4k followers,
 ~3,770 posts. Today every single sale is a manual conversation.
+
+**Rebrand:** the client approved direction B — **SECRETO · Boutique Erótica**, slogan
+"El placer es tuyo. El secreto, nuestro." During the 2–3 month transition the brand
+signs "SECRETO · antes XOXO". The design source of truth is
+`design_handoff_web_secreto/` (README, `design_system/tokens/*.css`, and
+`GUIA-DE-MARCA.md` — read the brand guide before writing any customer-facing copy).
 
 Current operation: nationwide shipping within Colombia, cash on delivery in Medellín,
 discretion advertised in the bio, orders coordinated over WhatsApp (`+57 316 866 7068`).
@@ -164,68 +170,47 @@ Until a merchant account is confirmed, `PAYMENT_PROVIDER=mock`. Cash on delivery
 already the client's working channel in Medellín and is a first-class payment method here,
 not a fallback — see `PaymentMethod.CASH_ON_DELIVERY`.
 
-## Design tokens
+## Design tokens — SECRETO
 
-Derived from the existing brand: neon script wordmark, magenta-to-red glow, near-black
-ground. Story highlight covers use a soft pink-lavender wash.
+Vibe: perfumería premium, no sex shop de neón. Máx. 2 fondos por vista (marfil + crema).
+Tokens live in `src/app/globals.css` as Tailwind `@theme`, mirroring
+`design_handoff_web_secreto/design_system/tokens/*.css` — that package is the source of
+truth; do not invent values.
 
 ```css
-@theme {
-  --color-ink:          #0B0A0F;  /* ground */
-  --color-surface:      #16141C;  /* elevated cards */
-  --color-neon:         #FF2BC2;  /* magenta glow — the signature */
-  --color-ember:        #F5325B;  /* wordmark red */
-  --color-blush:        #F6C9DE;  /* soft pink, from highlight covers */
-  --color-mist:         #C9B6E4;  /* lavender, from highlight covers */
-  --color-bone:         #F4F2F6;  /* body text on dark */
-
-  --font-sans: "Instrument Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-}
+--marfil  #F7F1E8  /* página */          --vino          #5C1A2E  /* marca / CTA */
+--crema   #FFFDF9  /* tarjetas */        --vino-claro    #71243C  /* hover */
+--arena   #F1E7D8  /* suave, hover */    --vino-profundo #451423  /* pressed */
+--linea   #E2D5C2  /* bordes */          --oro           #C9A96E  /* acento */
+--tinta   #2B1B20  /* titulares */       --cobre         #8C5A3C  /* kickers */
+--exito   #587A4F                        --error         #A33D3D
 ```
 
-**Type roles.** Three roles, and one of them is not a webfont.
+**Type roles.** Marcellus (weight 400 only) for logo, h1–h3, product names, and quotes;
+Archivo (300–600) for interface and body. Scale: 12 / 13.5 / 15 / 18 / 24 / 32 / 44 / 64.
+Kickers: Archivo 12px uppercase, tracking 3px, cobre. Buttons: uppercase, tracking 1.5px,
+medium. Prices: Archivo semibold vino, Colombian format `$120.000` via `formatCOP()`,
+always `tabular-nums`.
 
-| Role | Face | Used for |
-| --- | --- | --- |
-| Display | **The logo itself**, as an image | Wordmark only |
-| Body / UI | **Instrument Sans** 400 / 500 / 600 | Everything readable |
-| Utility | **IBM Plex Mono**, tabular figures | Prices, SKUs, quantities, spec values |
+- The logo is **typographic**: `.logo-wordmark` (Marcellus uppercase, tracking 0.25em).
+  Never use the PNG logos for the web wordmark; never go above weight 600 in Archivo.
+- Radii nearly square: 2px buttons · 4px cards/inputs · 6px modals/images. Pills
+  (999px) ONLY on chips, badges, and the WhatsApp CTA.
+- Exactly two shadows: `--shadow-card` (card hover) and `--shadow-pop` (modals).
+- Brand motif: the divider line—text—line (`.divisor`).
+- Hover: buttons lighten the vino; cards lift `translateY(-2px)` + shadow; links
+  vino → cobre. Transitions 150–200ms ease, no bounces.
+- Copy: Spanish de "tú", warm and direct, everything named naturally, **no emojis**
+  (`→` and `↓` are the only ornaments). Read
+  `design_handoff_web_secreto/design_system/GUIA-DE-MARCA.md` before writing copy.
+- Placeholder photography: diagonal arena stripes + monospace label — never drawn
+  products, never stock photos. Real photos: 4:5 on arena background, warm light.
 
-- Do **not** substitute a script webfont for the logo. Matching a neon script with a
-  Google Font reads as costume. The mark is an asset, not a text style.
-- Never go above weight 600. The wordmark already carries all the weight this brand needs.
-- Prices always use `font-variant-numeric: tabular-nums`. This aligns the price column
-  down the catalog grid and makes the number read as a price list rather than an Instagram
-  offer — which is the thesis, applied to type.
-
-**Scale** (mobile-first, 375px base):
-
-| Token | Size / line-height | Face |
-| --- | --- | --- |
-| `text-display` | 32 / 36 | sans 600 |
-| `text-title` | 24 / 30 | sans 600 |
-| `text-heading` | 20 / 26 | sans 500 |
-| `text-body` | 16 / 26 | sans 400 |
-| `text-small` | 14 / 20 | sans 400 |
-| `text-micro` | 12 / 16 | sans 500, uppercase |
-| `text-price` | 28 / 32 | mono 500, tabular |
-| `text-price-sm` | 16 / 20 | mono 400, tabular |
-
-Body never drops below 16px — smaller triggers input zoom on iOS and reads as fine print
-in a category where fine print costs trust.
-
-**Dark-ground tracking.** Light text on near-black blooms optically and looks tighter than
-it is. Add `letter-spacing: 0.01em` at 14px and below, and `0.08em` on uppercase micro
-labels. Leave 16px body untracked.
-
-**Design thesis: neon signage outside, calm pharmacy inside.** The wordmark and a single
-accent carry all the brand heat. Product pages, cart, and checkout are quiet, spacious,
-and clinical — because the buyer's anxiety here is about trust and discretion, not
-excitement. Spend the boldness in one place; keep everything around it disciplined.
-
-Do not apply the neon glow to body copy, cards, or multiple CTAs at once. One glowing
-element per view.
+**Design thesis: boutique outside, pharmacy inside.** Vino and oro carry the brand;
+product pages, bag, and checkout stay quiet, spacious, and clinical — the buyer's
+anxiety here is trust and discretion, not excitement. The discretion promise appears at
+every touchpoint ("Envío discreto" by the price, "Empaque neutro" badges, the
+announcement bar).
 
 ## Conventions
 
@@ -244,14 +229,13 @@ a Vercel preview. `PAYMENT_PROVIDER=mock`. The age gate ships in Phase 0 — it 
 what the client is approving, not a later addition.
 
 **Images.** Real product photography does not exist yet. Use
-`ProductImagePlaceholder` (4:5, tint derived from the product slug, visible "Imagen
-pendiente" label). Never substitute stock photography — a placeholder prettier than the
-real asset means the client approves a design that cannot ship.
+`ProductImagePlaceholder` (4:5, diagonal arena stripes, visible "Imagen pendiente"
+monospace label — the brand guide's placeholder). Never substitute stock photography — a
+placeholder prettier than the real asset means the client approves a design that cannot
+ship.
 
-The client's existing assets are mostly product-on-white packaging shots. v1 treatment is
-a deliberate light tile with rounded corners, so the white reads as framing rather than as
-a bright rectangle fighting the dark ground. Background removal and compositing onto
-`--color-surface` is the eventual target, done in batches as products are re-shot.
+The eventual target is a photo session on the arena `#F1E7D8` background with warm,
+clean light (see handoff "Assets"); until then the stripes stay.
 
 Label the preview for the client: the images are placeholders and the design adjusts when
 supplier photography arrives.
