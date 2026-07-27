@@ -3,8 +3,8 @@
 export default function AdminPage() {
   return (
     <section className="flex flex-col gap-4 p-4">
-      <h1 className="text-title">Panel</h1>
-      <p className="text-body text-bone/80">
+      <h1 className="text-xl">Panel</h1>
+      <p className="font-light">
         Productos, inventario y pedidos llegan en los sprints 2 y 4.
       </p>
     </section>

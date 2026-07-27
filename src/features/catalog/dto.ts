@@ -27,6 +27,8 @@ export type ProductCardDTO = {
   id: string;
   slug: string;
   name: string;
+  // Shown in the home product modal; cards themselves don't render it.
+  description: string | null;
   brandName: string | null;
   categoryName: string | null;
   categorySlug: string | null;
@@ -93,6 +95,7 @@ export function toProductCard(p: ProductCardPayload): ProductCardDTO {
     id: p.id,
     slug: p.slug,
     name: p.name,
+    description: p.description,
     brandName: p.brand?.name ?? null,
     categoryName: p.category?.name ?? null,
     categorySlug: p.category?.slug ?? null,

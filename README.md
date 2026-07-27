@@ -1,12 +1,14 @@
-# XOXO Store
+# SECRETO · Boutique Erótica (antes XOXO Store)
 
 Ecommerce storefront for **XOXO Sex Shop**, an adult products retailer in
-Medellín, Colombia, migrating off Instagram + WhatsApp DMs. Nationwide
-shipping, cash on delivery in Medellín, discretion as a functional requirement.
+Medellín, Colombia, migrating off Instagram + WhatsApp DMs — now rebranding to
+**SECRETO** ("El placer es tuyo. El secreto, nuestro."). Nationwide shipping,
+cash on delivery in Medellín, discretion as a functional requirement.
 
 **Read `CLAUDE.md` first** — it is the operating manual for this repo. The full
-technical specification lives in `docs/XOXO_TECHNICAL_SPEC.md`, and the Phase 0
-design brief in `docs/DESIGN_BRIEF_PDP.md`.
+technical specification lives in `docs/XOXO_TECHNICAL_SPEC.md`, and the design
+source of truth in `design_handoff_web_secreto/` (design system, brand guide,
+and the four hifi reference pages).
 
 ## Stack
 
@@ -38,7 +40,8 @@ npx prisma db seed
 
 ## Current phase
 
-**Phase 0 — Design.** Age gate, Home, Catalog, and Product detail with seeded
-mock data, deployed to a Vercel preview. `PAYMENT_PROVIDER=mock` until a
-merchant account is approved (PayU first — see
+**Phase 0 — Design.** Age gate, Home, Catálogo, Producto, and Checkout (3
+pasos, client-side bag) implementing the SECRETO handoff with seeded mock
+data, deployed to a Vercel preview. `PAYMENT_PROVIDER=mock` until a merchant
+account is approved (PayU first — see
 `docs/decisions/001-payment-provider.md`).

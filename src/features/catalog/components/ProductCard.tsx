@@ -1,74 +1,86 @@
+"use client";
+
 import Link from "next/link";
 
 import { ProductImagePlaceholder } from "@/components/commerce/ProductImagePlaceholder";
-import { Button } from "@/components/ui/button";
-import { availabilityLabel } from "../availability";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { ProductCardDTO } from "../dto";
-import { AddToCartButton } from "./AddToCartButton";
 import { Price } from "./Price";
 
-// Catalog card. Sold out is distinguishable by three signals — dimmed image,
-// opaque badge, and the availability line — never by color alone. The CTA
-// branches on the polymorphic option model: products with options route to
-// the PDP, option-less products add directly (Tienda Cereza pattern).
-export function ProductCard({ product }: { product: ProductCardDTO }) {
-  const out = product.availability.state === "out";
-  const badge = out
-    ? "Agotado"
-    : product.discountPercent
-      ? `-${product.discountPercent}%`
-      : null;
+export function cardKicker(product: ProductCardDTO): string {
+  return [product.categoryName, product.brandName].filter(Boolean).join(" · ");
+}
 
-  return (
-    <article className="flex flex-col gap-2">
-      <Link
-        href={`/tienda/${product.slug}`}
-        className="group flex flex-col gap-2 rounded-xl"
-      >
-        <div className="relative">
-          <div className={out ? "opacity-60" : undefined}>
-            <ProductImagePlaceholder name={product.name} seed={product.slug} />
-          </div>
-          {badge && (
-            <span
-              className={
-                out
-                  ? "absolute top-2 left-2 rounded-md bg-ink px-2 py-1 font-mono text-micro uppercase text-bone"
-                  : "absolute top-2 left-2 rounded-md bg-ember px-2 py-1 font-mono text-micro uppercase text-ink"
-              }
-            >
-              {badge}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <p className="font-mono text-micro uppercase text-bone/60">
-            {product.brandName ?? product.categoryName ?? ""}
-          </p>
-          <h3 className="text-body font-medium text-bone group-hover:text-bone/80">
-            {product.name}
-          </h3>
+// .card-producto del design system: crema, borde línea, media 4:5 en arena,
+// nombre en Marcellus, precio vino + nota "Envío discreto". Hover eleva 2px
+// con la única sombra de tarjeta del sistema. Sold out keeps three non-color
+// signals: dimmed media, explicit badge, and "Agotado" text.
+//
+// The whole card is one target. With `onSelect` it becomes a button (home
+// opens the product modal); without it, a link to the PDP (catálogo).
+export function ProductCard({
+  product,
+  onSelect,
+}: {
+  product: ProductCardDTO;
+  onSelect?: () => void;
+}) {
+  const out = product.availability.state === "out";
+
+  const body = (
+    <>
+      <div className={cn("relative", out && "opacity-60")}>
+        <ProductImagePlaceholder
+          name={product.name}
+          className="rounded-none"
+        />
+        {out ? (
+          <Badge className="absolute top-3 left-3">Agotado</Badge>
+        ) : product.discountPercent ? (
+          <Badge variant="oro" className="absolute top-3 left-3">
+            -{product.discountPercent}%
+          </Badge>
+        ) : null}
+      </div>
+      <div className="p-4">
+        {/* One line always: long category·brand pairs must not break the
+            card rhythm down the grid. */}
+        <p className="kicker truncate">{cardKicker(product)}</p>
+        <h3 className="mt-1.5 font-display text-lg font-normal text-tinta">
+          {product.name}
+        </h3>
+        <div className="mt-2.5 flex items-baseline justify-between gap-2">
           <Price
             cents={product.priceFromCents}
             compareAtCents={product.compareAtCents}
             from={product.priceVaries}
           />
-          <p className="text-small text-bone/70">
-            {availabilityLabel(product.availability)}
-          </p>
+          <span className="text-xs text-tenue">
+            {out ? "Agotado" : "Envío discreto"}
+          </span>
         </div>
+      </div>
+    </>
+  );
+
+  const cardClass =
+    "block w-full overflow-hidden rounded-md border border-linea bg-crema text-left transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-card";
+
+  if (onSelect) {
+    return (
+      <article>
+        <button type="button" onClick={onSelect} className={cardClass}>
+          {body}
+        </button>
+      </article>
+    );
+  }
+  return (
+    <article>
+      <Link href={`/tienda/${product.slug}`} className={cardClass}>
+        {body}
       </Link>
-      {out ? (
-        <Button variant="outline" size="sm" className="w-full" asChild>
-          <Link href={`/tienda/${product.slug}`}>Ver producto</Link>
-        </Button>
-      ) : product.hasOptions ? (
-        <Button variant="outline" size="sm" className="w-full" asChild>
-          <Link href={`/tienda/${product.slug}`}>Elegir opciones</Link>
-        </Button>
-      ) : product.addToCartVariantId ? (
-        <AddToCartButton variantId={product.addToCartVariantId} />
-      ) : null}
     </article>
   );
 }

@@ -1,72 +1,152 @@
 @import "tailwindcss";
 
 /*
- * XoXo brand tokens — see CLAUDE.md "Design tokens" and docs/XOXO_TECHNICAL_SPEC.md §8.
- * Thesis: neon signage outside, calm pharmacy inside. The wordmark and one accent
- * carry all the heat; everything else stays quiet.
+ * SECRETO · Boutique Erótica — design tokens.
+ * Source of truth: design_handoff_web_secreto/design_system/tokens/*.css.
+ * Vibe: perfumería premium, no sex shop de neón. Máx. 2 fondos por vista.
  */
 @theme {
-  --color-ink: #0b0a0f; /* ground */
-  --color-surface: #16141c; /* elevated cards */
-  --color-neon: #ff2bc2; /* magenta glow — the signature, one element per view */
-  --color-ember: #f5325b; /* wordmark red */
-  --color-blush: #f6c9de; /* soft pink, from highlight covers */
-  --color-mist: #c9b6e4; /* lavender, from highlight covers */
-  --color-bone: #f4f2f6; /* body text on dark */
+  /* Paleta */
+  --color-marfil: #f7f1e8; /* fondo de página */
+  --color-crema: #fffdf9; /* superficie de tarjetas */
+  --color-arena: #f1e7d8; /* fondos suaves, hover claro */
+  --color-linea: #e2d5c2; /* bordes */
+  --color-vino: #5c1a2e; /* marca / CTA */
+  --color-vino-claro: #71243c; /* hover */
+  --color-vino-profundo: #451423; /* pressed */
+  --color-oro: #c9a96e; /* acento dorado */
+  --color-cobre: #8c5a3c; /* acento secundario, kickers */
+  --color-tinta: #2b1b20; /* titulares, texto fuerte */
+  --color-cuerpo: #4a3a40; /* texto de cuerpo */
+  --color-suave: #8a7364; /* texto secundario */
+  --color-tenue: #b49c86; /* texto terciario, placeholders */
+  --color-exito: #587a4f;
+  --color-error: #a33d3d;
 
-  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  /* Tipografía: Marcellus (display, solo 400) + Archivo (interfaz, 300–600) */
+  --font-display: var(--font-marcellus), "Times New Roman", serif;
+  --font-sans: var(--font-archivo), "Helvetica Neue", sans-serif;
 
-  /* Type scale — mobile-first, 375px base. Body never below 16px. */
-  --text-display: 2rem; /* 32 */
-  --text-display--line-height: 2.25rem; /* 36 */
-  --text-display--font-weight: 600;
-  --text-title: 1.5rem; /* 24 */
-  --text-title--line-height: 1.875rem; /* 30 */
-  --text-title--font-weight: 600;
-  --text-heading: 1.25rem; /* 20 */
-  --text-heading--line-height: 1.625rem; /* 26 */
-  --text-heading--font-weight: 500;
-  --text-body: 1rem; /* 16 */
-  --text-body--line-height: 1.625rem; /* 26 */
-  --text-small: 0.875rem; /* 14 */
-  --text-small--line-height: 1.25rem; /* 20 */
-  --text-small--letter-spacing: 0.01em; /* dark-ground tracking at 14px and below */
-  --text-micro: 0.75rem; /* 12 */
-  --text-micro--line-height: 1rem; /* 16 */
-  --text-micro--font-weight: 500;
-  --text-micro--letter-spacing: 0.08em; /* uppercase micro labels */
-  --text-price: 1.75rem; /* 28 */
-  --text-price--line-height: 2rem; /* 32 */
-  --text-price--font-weight: 500;
-  --text-price-sm: 1rem; /* 16 */
-  --text-price-sm--line-height: 1.25rem; /* 20 */
+  /* Escala del handoff: 12 / 13.5 / 15 / 18 / 24 / 32 / 44 / 64 */
+  --text-xs: 12px;
+  --text-xs--line-height: 1.35;
+  --text-sm: 13.5px;
+  --text-sm--line-height: 1.5;
+  --text-base: 15px;
+  --text-base--line-height: 1.65;
+  --text-lg: 18px;
+  --text-lg--line-height: 1.65;
+  --text-xl: 24px;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 32px;
+  --text-2xl--line-height: 1.15;
+  --text-3xl: 44px;
+  --text-3xl--line-height: 1.15;
+  --text-display: 64px;
+  --text-display--line-height: 1.15;
+
+  --tracking-kicker: 3px;
+  --tracking-boton: 1.5px;
+  --tracking-logo: 0.25em;
+
+  --leading-body: 1.65;
+
+  /* Radios casi rectos; pills (rounded-full) SOLO chips, badges y CTA WhatsApp */
+  --radius-sm: 2px; /* botones */
+  --radius-md: 4px; /* tarjetas, inputs */
+  --radius-lg: 6px; /* modales, imágenes */
+
+  /* Únicas dos sombras del sistema */
+  --shadow-card: 0 2px 14px rgba(43, 27, 32, 0.07);
+  --shadow-pop: 0 12px 40px rgba(43, 27, 32, 0.16);
+
+  --container-content: 1200px;
 }
 
 html {
-  /* Keyboard focus scrolled into view never hides under the PDP sticky bar. */
-  scroll-padding-bottom: 6rem;
+  /* Anchors (#asesoria, #catalogo) never land under the sticky header. */
+  scroll-padding-top: 7rem;
 }
 
 body {
-  background: var(--color-ink);
-  color: var(--color-bone);
+  background: var(--color-marfil);
+  color: var(--color-cuerpo);
   font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
 }
 
-/* Prices, SKUs, quantities, and spec values always align down the grid. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--color-tinta);
+  line-height: 1.15;
+}
+
+a {
+  transition: color 0.15s ease;
+}
+
+@layer components {
+  /* Etiqueta superior uppercase — .kicker del design system */
+  .kicker {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-kicker);
+    text-transform: uppercase;
+    color: var(--color-cobre);
+    font-weight: 500;
+  }
+
+  /* Motivo de marca: línea fina a cada lado de un texto centrado */
+  .divisor {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: var(--color-cobre);
+  }
+  .divisor::before,
+  .divisor::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-linea);
+  }
+
+  /* Logo tipográfico — nunca imágenes para el wordmark en web */
+  .logo-wordmark {
+    font-family: var(--font-display);
+    color: var(--color-vino);
+    letter-spacing: var(--tracking-logo);
+    text-transform: uppercase;
+  }
+
+  /* Placeholder de foto pendiente: rayas diagonales arena, nunca SVG de producto */
+  .stripes-placeholder {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-arena),
+      var(--color-arena) 14px,
+      #ebdfcc 14px,
+      #ebdfcc 28px
+    );
+  }
+}
+
+/* Prices, quantities, and totals align down the grid. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Visible keyboard focus everywhere, matching the Button primitive. */
+/* Visible keyboard focus everywhere. Cobre reads on marfil, crema, arena y vino. */
 :focus-visible {
-  outline: 2px solid var(--color-bone);
+  outline: 2px solid var(--color-cobre);
   outline-offset: 2px;
 }
 
-/* Horizontal chip/card rows: scrollable without a visible scrollbar — the
-   clipped last item is the overflow affordance. */
+/* Horizontal rows scrollable without a visible scrollbar. */
 .scroll-row {
   scrollbar-width: none;
 }

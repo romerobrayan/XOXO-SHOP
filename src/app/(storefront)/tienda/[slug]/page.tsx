@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { DiscretionBlock } from "@/features/catalog/components/DiscretionBlock";
+import { Breadcrumb } from "@/components/site/Breadcrumb";
 import { Gallery } from "@/features/catalog/components/Gallery";
 import { PurchasePanel } from "@/features/catalog/components/PurchasePanel";
 import { RelatedProducts } from "@/features/catalog/components/RelatedProducts";
@@ -18,10 +18,11 @@ export async function generateMetadata({
   return { title: product?.name ?? "Producto" };
 }
 
-// Product detail — docs/DESIGN_BRIEF_PDP.md. Structure: gallery, identity,
-// then the client island (price, picker, availability, add to cart), the
-// discretion block right next to it, description, specs, shipping, related.
-// The bottom padding clears the sticky CTA bar plus the iOS home indicator.
+const summaryClass =
+  "cursor-pointer font-display text-lg text-tinta transition-colors hover:text-vino";
+
+// Detalle de producto per handoff §3: breadcrumb, galería | info, acordeones
+// con la discreción primero (abierta por defecto) y relacionados al cierre.
 export default async function ProductPage({
   params,
 }: {
@@ -37,65 +38,78 @@ export default async function ProductPage({
       )
     : [];
 
+  // "Cuidado" gets its own accordion per the handoff; the rest stays in the
+  // specs list, closed by the supplier reference when one exists.
+  const careSpec = product.specs.find((s) =>
+    s.label.toLowerCase().startsWith("cuidado"),
+  );
+  const specRows = [
+    ...product.specs.filter((s) => s !== careSpec),
+    ...(product.supplierRef
+      ? [{ label: "Referencia", value: `REF ${product.supplierRef}` }]
+      : []),
+  ];
+
+  const kicker = [product.categoryName, product.brandName]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <article className="flex flex-col gap-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:grid md:grid-cols-2 md:items-start md:gap-x-10">
-      <div className="md:sticky md:top-8">
-        <Gallery
-          media={product.media}
-          name={product.name}
-          seed={product.slug}
-        />
-      </div>
+    <div className="mx-auto w-full max-w-content px-4 py-8 md:px-6">
+      <Breadcrumb
+        items={[
+          { label: "Inicio", href: "/" },
+          product.categoryName && product.categorySlug
+            ? {
+                label: product.categoryName,
+                href: `/tienda?categoria=${product.categorySlug}`,
+              }
+            : { label: "Catálogo", href: "/tienda" },
+          { label: product.name },
+        ]}
+      />
 
-      <div className="flex flex-col gap-6">
-        <header className="flex flex-col gap-1">
-          <p className="font-mono text-micro uppercase text-bone/60">
-            {product.brandName ?? product.categoryName ?? ""}
-          </p>
-          <h1 className="text-title text-bone">{product.name}</h1>
-          {product.supplierRef && (
-            <p className="tabular font-mono text-small text-bone/60">
-              REF {product.supplierRef}
-            </p>
-          )}
-        </header>
+      <article className="mt-6 grid items-start gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+        <Gallery media={product.media} name={product.name} />
 
-        <PurchasePanel product={product} />
+        <div className="flex flex-col gap-4">
+          <header className="flex flex-col gap-4">
+            {kicker && <p className="kicker">{kicker}</p>}
+            <h1 className="text-2xl md:text-3xl">{product.name}</h1>
+          </header>
 
-        <DiscretionBlock />
+          <PurchasePanel product={product} />
 
-        {product.description && (
-          <section aria-labelledby="description-heading">
-            <h2 id="description-heading" className="text-heading text-bone">
-              Descripción
-            </h2>
-            <p className="mt-2 text-body text-bone/80">{product.description}</p>
-          </section>
-        )}
-
-        <SpecsTable specs={product.specs} />
-
-        <section aria-labelledby="shipping-heading">
-          <h2 id="shipping-heading" className="text-heading text-bone">
-            Envío y pago
-          </h2>
-          <div className="mt-2 flex flex-col gap-2 text-body text-bone/80">
-            <p>Enviamos a toda Colombia.</p>
-            <p>En Medellín puedes pagar contra entrega, al recibir el paquete.</p>
-            <p>
-              También aceptamos transferencia bancaria: subes tu comprobante,
-              lo verificamos y confirmamos tu pedido.
-            </p>
+          <div className="mt-3 border-t border-linea">
+            <details open className="border-b border-linea py-4">
+              <summary className={summaryClass}>Así llega tu pedido</summary>
+              <p className="mt-3 font-light">
+                Caja neutra sin logos ni descripción del contenido, remitente
+                genérico y factura discreta. Nadie sabrá qué llegó — esa es la
+                promesa.
+              </p>
+            </details>
+            {specRows.length > 0 && (
+              <details className="border-b border-linea py-4">
+                <summary className={summaryClass}>Especificaciones</summary>
+                <SpecsTable specs={specRows} />
+              </details>
+            )}
+            {careSpec && (
+              <details className="border-b border-linea py-4">
+                <summary className={summaryClass}>Cuidado y limpieza</summary>
+                <p className="mt-3 font-light">{careSpec.value}.</p>
+              </details>
+            )}
           </div>
-        </section>
-      </div>
+        </div>
+      </article>
 
-      <div className="md:col-span-2">
-        <RelatedProducts
-          categoryName={product.categoryName ?? "la tienda"}
-          products={related}
-        />
-      </div>
-    </article>
+      {related.length > 0 && (
+        <div className="mt-16">
+          <RelatedProducts products={related} />
+        </div>
+      )}
+    </div>
   );
 }

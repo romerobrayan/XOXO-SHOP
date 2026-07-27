@@ -1,33 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Instrument_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Archivo, Marcellus } from "next/font/google";
 import "./globals.css";
 
-const instrumentSans = Instrument_Sans({
-  variable: "--font-instrument-sans",
+const marcellus = Marcellus({
+  variable: "--font-marcellus",
   subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600"],
+  weight: "400",
 });
 
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin", "latin-ext"],
-  weight: ["400", "500"],
+  weight: ["300", "400", "500", "600"],
 });
 
-// viewportFit cover so env(safe-area-inset-bottom) is non-zero on iPhones —
-// the PDP sticky bar pads itself with it to clear the home indicator.
+// viewportFit cover so env(safe-area-inset-bottom) stays available on iPhones.
 export const viewport: Viewport = {
-  themeColor: "#0B0A0F",
+  themeColor: "#5C1A2E",
   viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
   title: {
-    default: "XOXO",
-    template: "%s · XOXO",
+    default: "SECRETO · Boutique Erótica",
+    template: "%s · SECRETO",
   },
   description:
-    "Tienda de productos para adultos en Medellín. Envío discreto a toda Colombia y pago contra entrega en Medellín.",
+    "Boutique erótica con envíos discretos en toda Colombia y contra entrega en Medellín. El placer es tuyo. El secreto, nuestro.",
 };
 
 export default function RootLayout({
@@ -38,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="es-CO"
-      className={`${instrumentSans.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${marcellus.variable} ${archivo.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

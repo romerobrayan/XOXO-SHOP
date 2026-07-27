@@ -59,13 +59,13 @@ export function AgeGate() {
     >
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <p className="font-mono text-micro uppercase text-bone/60">XOXO</p>
+          <p className="logo-wordmark text-lg">Secreto</p>
           <DialogTitle>Contenido para mayores de 18 años</DialogTitle>
           <DialogDescription>
-            XOXO vende productos para adultos. Al continuar confirmas que
-            tienes 18 años o más.
+            Secreto es una boutique erótica. Al continuar confirmas que tienes
+            18 años o más.
           </DialogDescription>
-          <p className="text-small text-bone/70">
+          <p className="text-sm text-suave">
             No pedimos tu fecha de nacimiento. Solo guardamos tu confirmación
             en este navegador.
           </p>
@@ -73,7 +73,7 @@ export function AgeGate() {
         {/* Primary first — in the DOM and visually — so initial focus lands on
             confirm, never on the exit link. */}
         <DialogFooter className="flex-col sm:flex-col sm:justify-start">
-          <Button variant="neon" className="w-full" onClick={confirm}>
+          <Button className="w-full" onClick={confirm}>
             Soy mayor de 18
           </Button>
           <Button variant="ghost" className="w-full" asChild>

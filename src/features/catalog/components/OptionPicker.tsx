@@ -91,9 +91,9 @@ function OptionGroup({
 
   return (
     <div className="flex flex-col gap-2">
-      <p id={labelId} className="text-small font-medium text-bone">
+      <p id={labelId} className="text-sm font-medium text-tinta">
         {option.name}
-        {selectedLabel && <span className="text-bone/70">: {selectedLabel}</span>}
+        {selectedLabel && <span className="text-suave">: {selectedLabel}</span>}
       </p>
       <div
         role="radiogroup"
@@ -133,19 +133,23 @@ function OptionGroup({
                 if (!unavailable) onSelect(option.id, value.id);
               }}
               className={cn(
-                "inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg border px-4 text-small transition-colors",
+                // Option values are chips — one of the few pill shapes allowed.
+                "inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border px-4 text-sm transition-colors duration-150",
                 checked
-                  ? "border-bone bg-bone font-medium text-ink"
+                  ? "border-vino bg-vino font-medium text-marfil"
                   : unavailable
-                    ? "border-bone/10 text-bone/60"
-                    : "border-bone/20 text-bone hover:bg-surface",
+                    ? "border-linea bg-transparent text-tenue"
+                    : "border-linea bg-crema text-cuerpo hover:bg-arena",
               )}
             >
               {/* Colors always show swatch + name — never a swatch alone. */}
               {value.hex && (
                 <span
                   aria-hidden="true"
-                  className="size-3.5 shrink-0 rounded-full border border-bone/30"
+                  className={cn(
+                    "size-3.5 shrink-0 rounded-full border",
+                    checked ? "border-marfil/60" : "border-linea",
+                  )}
                   style={{ background: value.hex }}
                 />
               )}
