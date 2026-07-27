@@ -1,6 +1,13 @@
 # Claude Design Playbook — XoXo PDP
 
-How to run the Phase 0 design session. Companion to `DESIGN_BRIEF_PDP.md`.
+> **SUPERSEDED — historical record.**
+> This playbook describes running the Phase 0 design session for the XOXO neon direction.
+> That session happened, the client then chose a different direction, and the resulting
+> **SECRETO** design arrived as a finished handoff package (`design_handoff_web_secreto/`)
+> rather than a canvas session. Phase 0 is designed and implemented — there is no session
+> left to run. Kept for process reference only; see `docs/archive/README.md`.
+
+How to run the Phase 0 design session. Companion to `DESIGN_BRIEF_PDP.md` (also archived).
 
 Claude Design is at `claude.ai/design` or the Claude Desktop sidebar. **Web and desktop
 only — this cannot be done from the phone.**

@@ -1,9 +1,16 @@
-# XoXo Ecommerce — Technical Specification
+# SECRETO Ecommerce — Technical Specification
 
-**Client:** XOXO Sex Shop (`@xoxo.sex0`) — adult products retailer, Medellín, Colombia
+**Client:** XOXO Sex Shop (`@xoxo.sex0`), rebranding to **SECRETO · Boutique Erótica** —
+adult products retailer, Medellín, Colombia
 **Author:** Brayan Romero
-**Version:** 0.2 — Revised after brand and catalog review
-**Status:** Design phase (Phase 0)
+**Version:** 0.3 — Revised after the SECRETO rebrand and the Phase 0 build
+**Status:** Phase 0 implemented; Phase 1 (database) starting
+
+> **Scope of this document.** Sections 1–7 and 9–11 are the product and engineering spec.
+> **Section 8 is a summary of the design direction, not its source** — the design source
+> of truth is the handoff package in `design_handoff_web_secreto/` (README, tokens,
+> `GUIA-DE-MARCA.md`). The pre-rebrand design documents live in `docs/archive/` and
+> describe a neon direction that no longer applies.
 
 ---
 
@@ -21,6 +28,22 @@ self-service purchases.
 **The job of this project:** move the catalog and the transaction out of the DM, and
 remove the one thing that suppresses volume most in this category — having to ask a human
 for a price and then tell them what you want to buy.
+
+### The rebrand
+
+The client approved a new identity: **SECRETO · Boutique Erótica**, slogan *"El placer es
+tuyo. El secreto, nuestro."* For a 2–3 month transition the brand signs **"SECRETO · antes
+XOXO"** so the Instagram audience follows the name across.
+
+This is not cosmetic for the store. The old identity was a neon script wordmark; SECRETO
+is a typographic wordmark on marfil and vino, positioned as a *perfumería*, not a sex shop.
+The whole point of the reposition is that the buyer's anxiety in this category is trust and
+discretion — and a boutique reads as a business you can give a card to. §8 summarizes the
+direction; `design_handoff_web_secreto/` defines it.
+
+The repository, the Prisma models, and the internal vocabulary still say XOXO in places.
+That is deliberate churn avoidance, not drift: renaming a database column buys nothing the
+customer can see. Anything **customer-facing** says SECRETO.
 
 ### Catalog
 
@@ -74,7 +97,7 @@ These are conditions for the store existing, not backlog items.
 
 | Requirement | Implementation |
 | --- | --- |
-| 18+ age confirmation | Dismissible modal on first visit, `middleware.ts`-driven. Boolean consent + timestamp cookie. **Do not collect date of birth** — data minimization. See the note below on how hard this should be |
+| 18+ age confirmation | Dismissible modal on first visit, driven from `src/proxy.ts` (Next 16 renamed the `middleware.ts` convention). Boolean consent + timestamp cookie. **Do not collect date of birth** — data minimization. See the note below on how hard this should be |
 | Discreet packaging | `Order.discreetPackaging`, defaults `true` |
 | Neutral billing descriptor | Coordinated with the gateway at onboarding |
 | Discreet notifications | Neutral email sender and subject, no product names or images in subject lines or previews |
@@ -309,8 +332,26 @@ export const formatCOP = (cents: number) =>
     style: "currency",
     currency: "COP",
     maximumFractionDigits: 0,
-  }).format(cents / 100);
+  })
+    .format(cents / 100)
+    .replace(/\s/g, "");
 ```
+
+The trailing `replace` is not incidental: `Intl` emits `$ 120.000` with a non-breaking
+space, and the brand guide fixes the Colombian compact form `$120.000`. One function, so
+the rule holds everywhere.
+
+**The catalog reads from Postgres or from fixtures, decided by `DATABASE_URL`.**
+The Phase 0 preview has no database, and the design review could not wait on one. Rather
+than hardcoding arrays into pages, `features/catalog/queries.ts` answers from
+`fixtures.ts` when `DATABASE_URL` is absent — typed as the same Prisma payloads, mapped
+through the same DTOs, so no page component knows which source it got. Both sources read
+one declaration in `demo-catalog.ts`, and `parity.test.ts` compares them against a seeded
+database whenever one is configured.
+
+This is scaffolding with an expiry date, not architecture: it comes out when the client's
+real catalog is loaded and the store always has a database. Until then it is what lets a
+preview URL exist at all.
 
 **Order line items store snapshots, not just foreign keys.**
 `OrderItem` copies the product name, SKU, size, color, and unit price at the moment of
@@ -369,17 +410,25 @@ tutorials will not match.
 
 ### Infrastructure
 
-| Package | Purpose |
-| --- | --- |
-| `better-auth` | Admin authentication. Lighter than Auth.js for a single-role panel |
-| `resend` + `react-email` | Order confirmation emails |
-| `next-cloudinary` | Product image hosting, transformation, and optimization |
-| `nanoid` | Human-readable order numbers |
-| `date-fns` | Dates with `es` locale |
+| Package | Purpose | Installed |
+| --- | --- | --- |
+| `nanoid` | Human-readable order numbers | Yes |
+| `date-fns` | Dates with `es` locale | Yes |
+| `better-auth` | Admin authentication. Lighter than Auth.js for a single-role panel | No — Phase 4 |
+| `resend` + `react-email` | Order confirmation emails | No — Phase 3 |
+| `next-cloudinary` | Product image hosting, transformation, and optimization | No — waiting on the photo session |
+
+The three unchecked rows are decisions, not dependencies. Nothing imports them yet, so
+they are not in `package.json`; add each in the commit that first uses it, along with its
+entry in `.env.example`.
 
 ### Dev
 
-`eslint`, `prettier`, `prettier-plugin-tailwindcss`, `vitest`, `@playwright/test`, `tsx`
+`eslint`, `prettier`, `prettier-plugin-tailwindcss`, `vitest`, `@playwright/test`, `tsx`,
+`dotenv`
+
+Fonts are self-hosted through `next/font/google` (Marcellus, Archivo) — no external font
+request at runtime.
 
 ### Infrastructure choices
 
@@ -392,76 +441,71 @@ tutorials will not match.
 
 ## 5. Folder Structure
 
+What exists today, with the directories Phases 1–4 will fill marked `(planned)`.
+
 ```
-xoxo-store/
+XOXO-SHOP/
 ├── prisma/
 │   ├── schema.prisma
-│   ├── migrations/
-│   └── seed.ts                      # demo catalog for the design review
-├── prisma.config.ts                 # Prisma 7 config
-├── public/
+│   ├── migrations/                  # 20260727232736_init — the whole model, one migration
+│   └── seed.ts                      # writes the demo catalog to Postgres
+├── prisma.config.ts                 # Prisma 7 config: schema path, migrations, seed command
 ├── src/
 │   ├── app/
-│   │   ├── (storefront)/
-│   │   │   ├── layout.tsx           # header, nav, cart drawer, footer
+│   │   ├── (storefront)/            # public pages, age gate applies
+│   │   │   ├── layout.tsx           # announcement bar, header, footer
 │   │   │   ├── page.tsx             # Home
 │   │   │   ├── tienda/
 │   │   │   │   ├── page.tsx         # Catalog (PLP)
 │   │   │   │   └── [slug]/page.tsx  # Product detail (PDP)
-│   │   │   ├── carrito/page.tsx
-│   │   │   └── checkout/
-│   │   │       ├── page.tsx
-│   │   │       └── confirmacion/[orderNumber]/page.tsx
-│   │   ├── (admin)/
-│   │   │   └── admin/
-│   │   │       ├── productos/
-│   │   │       ├── inventario/
-│   │   │       └── pedidos/
-│   │   ├── api/
-│   │   │   └── webhooks/[provider]/route.ts
-│   │   ├── layout.tsx
-│   │   └── globals.css              # Tailwind v4 @theme tokens
+│   │   │   └── carrito/page.tsx
+│   │   ├── (checkout)/checkout/     # own layout: simplified header, no nav
+│   │   ├── (admin)/admin/           # auth-gated panel (placeholder)
+│   │   ├── api/webhooks/[provider]/route.ts
+│   │   ├── layout.tsx               # fonts, metadata
+│   │   └── globals.css              # Tailwind v4 @theme — the SECRETO tokens
 │   │
 │   ├── components/
-│   │   ├── ui/                      # shadcn primitives
-│   │   └── commerce/                # ProductCard, VariantPicker, PriceTag, CartDrawer
+│   │   ├── ui/                      # shadcn primitives: badge, button, dialog, input, select
+│   │   ├── commerce/                # ProductImagePlaceholder, WhatsAppCta
+│   │   └── site/                    # AnnouncementBar, SiteHeader, SiteFooter, Breadcrumb, nav
 │   │
 │   ├── features/
-│   │   ├── age-gate/
+│   │   ├── age-gate/                # AgeGate modal + consent cookie name
 │   │   ├── catalog/
-│   │   │   ├── queries.ts           # getProducts, getProductBySlug
+│   │   │   ├── queries.ts           # getProducts, getProductBySlug — DB or fixtures
+│   │   │   ├── demo-catalog.ts      # the demo products, declared once
+│   │   │   ├── fixtures.ts          # demo-catalog as Prisma payloads (no DATABASE_URL)
+│   │   │   ├── shapes.ts            # the canonical Prisma include shapes
+│   │   │   ├── dto.ts               # the boundary that keeps stock columns off the client
 │   │   │   ├── optionKey.ts         # the ONLY place optionKey is computed
-│   │   │   ├── schemas.ts
-│   │   │   └── components/
-│   │   ├── cart/
-│   │   ├── checkout/
-│   │   │   ├── actions.ts
-│   │   │   └── schemas.ts
-│   │   ├── inventory/
-│   │   │   ├── reserve.ts           # reservation + release logic
-│   │   │   └── movements.ts
-│   │   └── orders/
+│   │   │   ├── pickerState.ts       # pure option-selection logic
+│   │   │   ├── availability.ts      # available = onHand - reserved, banded for display
+│   │   │   ├── sort.ts · schemas.ts
+│   │   │   └── components/          # ProductCard, OptionPicker, Gallery, FilterSidebar, …
+│   │   ├── cart/                    # Zustand store + header link
+│   │   ├── checkout/                # CheckoutFlow (3 steps, client-side bag)
+│   │   ├── home/                    # NewsletterForm
+│   │   ├── inventory/               # (planned) reserve.ts, movements.ts
+│   │   └── orders/                  # (planned)
 │   │
 │   ├── payments/
 │   │   ├── payment-provider.ts      # the port
 │   │   ├── types.ts
-│   │   ├── providers/
-│   │   │   ├── wompi.ts
-│   │   │   ├── payu.ts
-│   │   │   └── mock.ts              # Phase 0 / local dev
-│   │   └── index.ts                 # factory, reads PAYMENT_PROVIDER env
+│   │   ├── providers/mock.ts        # payu.ts / wompi.ts land in Phase 3
+│   │   └── index.ts                 # factory, reads PAYMENT_PROVIDER
 │   │
-│   ├── lib/
-│   │   ├── db.ts                    # Prisma singleton
-│   │   ├── money.ts
-│   │   ├── slug.ts
-│   │   └── utils.ts
-│   └── types/
+│   ├── lib/                         # db.ts (Prisma singleton), money.ts, slug.ts,
+│   │                                # contact.ts (the WhatsApp number), utils.ts
+│   ├── generated/prisma/            # generated client — git-ignored, postinstall
+│   └── proxy.ts                     # age gate — Next 16's middleware convention
 │
+├── design_handoff_web_secreto/      # DESIGN SOURCE OF TRUTH — tokens, brand guide, pages
 ├── docs/
-│   ├── design-brief.md
-│   └── decisions/                   # ADRs — start with 001-payment-provider.md
-├── middleware.ts                    # age gate — runs before every catalog route
+│   ├── XOXO_TECHNICAL_SPEC.md       # this file
+│   ├── ESTADO-Y-SIGUIENTE-SESION.md # current state, open debt, next blocks
+│   ├── decisions/                   # ADRs — 001-payment-provider.md
+│   └── archive/                     # pre-rebrand design docs (neon direction)
 ├── .env.example
 └── CLAUDE.md
 ```
@@ -537,391 +581,65 @@ family. Given they already sell across three unrelated families, it is worth pay
 
 ### 6.2 Schema
 
-```prisma
-// prisma/schema.prisma
-
-generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// ─── Catalog ────────────────────────────────────────────────
-
-model Brand {
-  id       String    @id @default(cuid())
-  name     String    @unique   // "Lovense", "Sen Intimo", "Pretty Love"
-  slug     String    @unique
-  logoUrl  String?
-  products Product[]
-}
-
-model Category {
-  id       String     @id @default(cuid())
-  name     String                // "Lencería", "Cosmética íntima", "Juguetería"
-  slug     String     @unique
-  position Int        @default(0)
-  parentId String?
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryTree")
-  products Product[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([parentId])
-}
-
-model Product {
-  id          String        @id @default(cuid())
-  slug        String        @unique
-  name        String
-  description String?       @db.Text
-  status      ProductStatus @default(DRAFT)
-
-  supplierRef String?       // supplier reference, e.g. "11362" — already in use
-
-  brandId    String?
-  brand      Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  options  ProductOption[]
-  variants ProductVariant[]
-  specs    ProductSpec[]
-  images   ProductImage[]
-
-  // Denormalized for catalog cards — avoids an aggregate per render.
-  // Recalculated whenever a variant price changes.
-  minPriceCents Int @default(0)
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  publishedAt DateTime?
-
-  @@index([status, publishedAt])
-  @@index([categoryId])
-  @@index([brandId])
-}
-
-enum ProductStatus {
-  DRAFT
-  ACTIVE
-  ARCHIVED
-}
-
-// An axis of choice. Zero rows is valid and common.
-model ProductOption {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  name     String   // "Talla" | "Color" | "Presentación"
-  position Int      @default(0)
-
-  values ProductOptionValue[]
-
-  @@unique([productId, name])
-  @@index([productId])
-}
-
-model ProductOptionValue {
-  id       String        @id @default(cuid())
-  optionId String
-  option   ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
-
-  value    String   // "S" | "Negro" | "30 ml"
-  hex      String?  // set for colors, null otherwise — drives UI swatches
-  position Int      @default(0)
-
-  variantValues VariantOptionValue[]
-  images        ProductImage[]
-
-  @@unique([optionId, value])
-  @@index([optionId])
-}
-
-// The sellable unit. Always at least one per product.
-model ProductVariant {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  sku            String  @unique
-  priceCents     Int
-  compareAtCents Int?    // strikethrough price for promotions
-  barcode        String?
-
-  // Sorted, joined option value IDs. Enforces combination uniqueness,
-  // which Prisma cannot express over a relation. "" for option-less products.
-  optionKey String @default("")
-
-  // Inventory. available = stockOnHand - stockReserved
-  stockOnHand   Int @default(0)
-  stockReserved Int @default(0)
-  lowStockAt    Int @default(3)
-
-  isActive     Boolean              @default(true)
-  optionValues VariantOptionValue[]
-  movements    InventoryMovement[]
-  orderItems   OrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([productId, optionKey])
-  @@index([productId])
-  @@index([sku])
-}
-
-model VariantOptionValue {
-  variantId     String
-  variant       ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  optionValueId String
-  optionValue   ProductOptionValue @relation(fields: [optionValueId], references: [id], onDelete: Cascade)
-
-  @@id([variantId, optionValueId])
-  @@index([optionValueId])
-}
-
-// Display-only attributes that do NOT vary within a product.
-// "Material: silicona médica" · "Conectividad: Bluetooth" · "Contenido: 130 ml"
-model ProductSpec {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  label    String
-  value    String
-  position Int    @default(0)
-
-  @@index([productId, position])
-}
-
-model ProductImage {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  // Nullable: null = applies to the whole product.
-  // Set = show when that option value is selected (color-specific photography).
-  optionValueId String?
-  optionValue   ProductOptionValue? @relation(fields: [optionValueId], references: [id], onDelete: SetNull)
-
-  url      String
-  alt      String
-  position Int    @default(0)
-
-  @@index([productId, position])
-}
-
-// ─── Inventory ──────────────────────────────────────────────
-
-// Append-only ledger. The stock columns on ProductVariant are the running
-// balance; this explains how it got there. Essential for a store migrating
-// off manual DM-based tracking.
-model InventoryMovement {
-  id        String         @id @default(cuid())
-  variantId String
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-
-  delta  Int            // negative = stock leaving
-  reason MovementReason
-  note   String?
-
-  orderId String?
-  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-
-  @@index([variantId, createdAt])
-}
-
-enum MovementReason {
-  PURCHASE        // restocked from supplier
-  SALE
-  RETURN
-  MANUAL_ADJUST   // physical count correction
-  DAMAGE
-  RESERVATION
-  RESERVATION_RELEASE
-}
-
-// ─── Orders ─────────────────────────────────────────────────
-
-model Customer {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  fullName  String
-  phone     String
-  orders    Order[]
-  addresses Address[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Address {
-  id         String   @id @default(cuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  fullName     String
-  phone        String
-  documentType DocumentType  // required for Colombian invoicing
-  documentId   String
-  department   String        // Antioquia
-  city         String        // Medellín
-  line1        String
-  neighborhood String?
-  notes        String?
-
-  isDefault Boolean @default(false)
-  orders    Order[]
-
-  @@index([customerId])
-}
-
-enum DocumentType {
-  CC   // cédula de ciudadanía
-  CE   // cédula de extranjería
-  NIT
-  PP   // pasaporte
-}
-
-model Order {
-  id          String @id @default(cuid())
-  orderNumber String @unique  // "XOXO-7F3K2M" — what the customer quotes on WhatsApp
-
-  // Nullable: guest checkout is mandatory in this category.
-  customerId String?
-  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  addressId  String?
-  address    Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
-
-  guestEmail String?
-  guestPhone String?
-
-  status   OrderStatus @default(PENDING)
-  currency String      @default("COP")
-
-  subtotalCents Int
-  shippingCents Int @default(0)
-  discountCents Int @default(0)
-  totalCents    Int
-
-  // Discretion is a functional requirement, not a preference.
-  discreetPackaging Boolean @default(true)
-
-  items     OrderItem[]
-  payments  Payment[]
-  movements InventoryMovement[]
-
-  // Reservations expire so abandoned carts release stock.
-  reservationExpiresAt DateTime?
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  paidAt    DateTime?
-  shippedAt DateTime?
-
-  @@index([status, createdAt])
-  @@index([customerId])
-}
-
-enum OrderStatus {
-  PENDING     // created, awaiting payment
-  PAID
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
-  REFUNDED
-}
-
-// Snapshot of the purchase. Catalog data is copied, not joined,
-// so later edits never rewrite history.
-model OrderItem {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  variantId String?
-  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-
-  productName String
-  brandName   String?
-  variantSku  String
-  // Human-readable at purchase time, e.g. "Talla: S · Color: Negro".
-  // Empty string for option-less products.
-  variantLabel    String
-  optionsSnapshot Json?
-  imageUrl        String?
-
-  unitPriceCents Int
-  quantity       Int
-  totalCents     Int
-
-  @@index([orderId])
-}
-
-// ─── Payments ───────────────────────────────────────────────
-
-model Payment {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  provider          String         // "wompi" | "mock" — never "stripe", see §2
-  providerReference String?        @unique
-  method            PaymentMethod
-  status            PaymentStatus  @default(PENDING)
-  amountCents       Int
-
-  rawPayload Json?  // full provider response, for reconciliation and disputes
-
-  // Manual transfer flow: customer uploads a receipt, an advisor approves in the
-  // admin panel. Nothing ships until status is APPROVED.
-  proofOfPaymentUrl String?
-  verifiedAt        DateTime?
-  verifiedBy        String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([orderId])
-  @@index([status])
-}
-
-enum PaymentMethod {
-  CARD
-  PSE
-  NEQUI
-  DAVIPLATA
-  BANCOLOMBIA_TRANSFER
-  CASH_ON_DELIVERY       // contra entrega — already the client's working channel
-  BANK_TRANSFER_MANUAL   // customer transfers, uploads proof, an advisor verifies
-}
-
-enum PaymentStatus {
-  PENDING
-  AWAITING_VERIFICATION  // proof uploaded, waiting on a human to confirm
-  APPROVED
-  DECLINED
-  VOIDED
-  ERROR
-  REFUNDED
-}
-```
+**The schema lives in `prisma/schema.prisma`, and that file is the only copy.** It was
+inlined here while it was a proposal; it is now applied code with a migration behind it,
+and a second copy in a document nobody runs is a copy that goes stale. (It already had:
+this section still described a `ProductImage` model that shipped as `ProductMedia`.)
+
+Read it there. What follows is what the file cannot tell you — the decisions behind it.
+
+**Media, not images.** `ProductMedia` carries a `type` of `IMAGE` or `VIDEO` with a
+`posterUrl` cover frame, because a third of what this client posts is video and a picker
+that can only hold stills would have forced a schema change on first upload. Video is
+tap-to-play and muted: a product page that starts playing this category's video on scroll
+is a discretion failure, not a feature.
+
+`ProductMedia.optionValueId` is nullable — `null` applies to the whole product, set means
+"show this only while that value is selected." That is how color-specific photography
+attaches without a second table.
+
+**Money is `Int`, in cents.** COP has no decimal in practice, but the rule is about
+representation, not the currency: `Float` accumulates error the moment a total is summed.
+Format at render time only, with `formatCOP()` in `src/lib/money.ts`.
+
+**`optionKey` on the variant.** The denormalized, sorted, joined list of option value IDs
+backing `@@unique([productId, optionKey])` — see §6.1. `""` for option-less products, which
+is why they collapse to exactly one row without a special case.
+
+**Stock is two columns and a ledger.** `stockOnHand` and `stockReserved` are the running
+balance; `InventoryMovement` is the append-only explanation of how they got there. Every
+mutation writes a row, seeding included. Available stock is `stockOnHand - stockReserved`
+and is never exposed raw to the storefront — the DTO layer in
+`src/features/catalog/dto.ts` bands it before it reaches a page prop.
+
+**`OrderItem` is a snapshot.** Product name, brand, SKU, option labels, and unit price are
+copied at purchase time. A historical order resolved through a join to the live catalog
+would silently rewrite itself when the client edits a price. `variantId` stays as a
+nullable reference for reporting, with `onDelete: SetNull`.
+
+**`Order.customerId` is nullable.** Guest checkout is mandatory in this category, so the
+customer row is optional and `guestEmail` / `guestPhone` carry the contact. The order
+number is what the buyer quotes on WhatsApp — a short human-readable code, not the cuid.
+
+**`Order.discreetPackaging` defaults to `true`.** A default, not a checkbox to be
+remembered.
+
+**Payment carries the manual-transfer flow.** `proofOfPaymentUrl`, `verifiedAt`, and
+`verifiedBy` exist because bank transfer with an advisor approving a receipt is a real
+payment method here, not a fallback — see §2. `rawPayload` keeps the full provider
+response for reconciliation and disputes.
+
+**Colombian address fields.** `department`, `city`, `documentType`, `documentId` are
+required for invoicing, and `documentType` is an enum (`CC` / `CE` / `NIT` / `PP`) rather
+than a string so the admin panel can render it as a select.
+
+**Changing the schema:** edit `prisma/schema.prisma`, run `npx prisma migrate dev`, commit
+the generated migration with the change. Never hand-edit an applied migration.
 
 ### 6.3 What is deliberately not in the database
 
 **Age verification.** The gate stores a boolean consent and a timestamp in a cookie,
-checked in `middleware.ts`. No date of birth, no identity document, no database row. In a
+checked in `src/proxy.ts`. No date of birth, no identity document, no database row. In a
 category this sensitive, the safest personal data is the data you never collect. If a
 regulator later requires stronger verification, that becomes a third-party integration —
 not a column.
@@ -979,13 +697,13 @@ their current no-show rate on `contra entrega` is; they will know, and it decide
 Design first, because that is what was committed to the client — and because a visual
 approval de-risks everything downstream.
 
-| Phase | Output | Blocks on |
-| --- | --- | --- |
-| **0 — Design** | Age gate, Home, Catalog, Product detail. Static, seeded mock data, deployed to a Vercel preview URL | Nothing |
-| **1 — Catalog** | Real Prisma schema, seed script, admin product CRUD | Phase 0 approval |
-| **2 — Cart & Checkout** | Cart, address form, checkout with `MockProvider` | Phase 1 |
-| **3 — Payments** | Wompi adapter, webhooks, reservation logic, confirmation email | Merchant account approved |
-| **4 — Admin & launch** | Inventory screen, order management, analytics, domain | Phase 3 |
+| Phase | Output | Blocks on | Status |
+| --- | --- | --- | --- |
+| **0 — Design** | Age gate, Home, Catálogo, Producto, Checkout. Demo data, deployed to a Vercel preview URL | Nothing | **Implemented** — SECRETO handoff built, awaiting client sign-off |
+| **1 — Catalog** | Prisma schema and first migration, seed script, admin product CRUD | Phase 0 approval | In progress — schema, migration, and seed done; admin CRUD is the open half |
+| **2 — Cart & Checkout** | Server-side cart, address form, order creation, checkout against `MockProvider` | Phase 1 | Not started — the current 3-step checkout is client-side only and creates no `Order` |
+| **3 — Payments** | PayU adapter, webhooks, reservation logic, confirmation email | Merchant account approved | Not started — port and mock provider exist |
+| **4 — Admin & launch** | Inventory screen, order management, analytics, domain | Phase 3 | Not started |
 
 Phase 3 depends on an external approval process outside your control, and in this category
 that approval is genuinely uncertain rather than merely slow. Starting the gateway
@@ -1001,7 +719,14 @@ change instead of a rebuild.
 
 ---
 
-## 8. Phase 0 — Design Brief
+## 8. Phase 0 — Design
+
+> **Summary, not source.** The design is specified by the handoff package in
+> `design_handoff_web_secreto/`: its `README.md` (screen-by-screen), the tokens in
+> `design_system/tokens/*.css`, and `design_system/GUIA-DE-MARCA.md` (tone of voice —
+> read it before writing any customer-facing copy). Where this section and that package
+> disagree, the package wins. The pre-rebrand brief in `docs/archive/` is superseded in
+> full.
 
 ### The strategic problem the design has to solve
 
@@ -1010,74 +735,67 @@ discretion**: is this a real business, will the package be discreet, will this s
 a card statement, does anyone see what I bought. The current Instagram profile answers
 that with a sentence in the bio. The site has to answer it structurally.
 
-That is the design thesis: **neon signage outside, calm pharmacy inside.** The wordmark
-and one accent carry all the brand heat. Catalog, product page, and checkout are quiet,
-spacious, and clinical. Restraint here is not timidity — it is the thing that converts.
+The design thesis: **boutique outside, pharmacy inside.** The wordmark, the vino, and the
+oro carry all the brand. Catalog, product page, bag, and checkout are quiet, spacious, and
+clinical. Restraint here is not timidity — it is the thing that converts.
+
+The rebrand sharpens this rather than changing it. A neon sign says *sex shop*; a
+perfumería says *business you can hand your card to*. Same thesis, a positioning that
+carries it further.
 
 ### Brand tokens
 
-Derived from the existing assets: neon script wordmark in magenta-to-red glow on
-near-black, with story highlight covers in a soft pink-lavender wash.
+SECRETO is warm, light, and typographic — *perfumería premium, no sex shop de neón*. At
+most two backgrounds per view (marfil for the page, crema for cards). The values below
+mirror `design_system/tokens/colors.css`; they live in the codebase as Tailwind v4
+`@theme` variables in `src/app/globals.css`.
 
 ```css
 @theme {
-  --color-ink:     #0B0A0F;  /* ground */
-  --color-surface: #16141C;  /* elevated cards */
-  --color-neon:    #FF2BC2;  /* magenta glow — the signature */
-  --color-ember:   #F5325B;  /* wordmark red */
-  --color-blush:   #F6C9DE;  /* soft pink, from highlight covers */
-  --color-mist:    #C9B6E4;  /* lavender, from highlight covers */
-  --color-bone:    #F4F2F6;  /* body text on dark */
+  --color-marfil:        #F7F1E8;  /* página */
+  --color-crema:         #FFFDF9;  /* tarjetas */
+  --color-arena:         #F1E7D8;  /* fondos suaves, hover */
+  --color-linea:         #E2D5C2;  /* bordes */
+  --color-vino:          #5C1A2E;  /* marca / CTA */
+  --color-vino-claro:    #71243C;  /* hover */
+  --color-vino-profundo: #451423;  /* pressed */
+  --color-oro:           #C9A96E;  /* acento */
+  --color-cobre:         #8C5A3C;  /* kickers */
+  --color-tinta:         #2B1B20;  /* titulares */
+  --color-exito:         #587A4F;
+  --color-error:         #A33D3D;
 }
 ```
 
-**Type.** Three roles, and the most important one is not a webfont.
+**Type.** Two faces, and the display one is the logo.
 
 | Role | Face | Used for |
 | --- | --- | --- |
-| Display | **The logo itself**, as an image | Wordmark only |
-| Body / UI | **Instrument Sans** 400 / 500 / 600 | Everything readable |
-| Utility | **IBM Plex Mono**, tabular figures | Prices, SKUs, quantities, spec values |
+| Display | **Marcellus**, weight 400 only | Wordmark, h1–h3, product names, quotes |
+| Interface | **Archivo** 300–600 | Everything else, including prices |
 
-The logo is already a neon script. Do not try to match it with a script webfont — that
-reads as costume, and it competes with the one thing that is genuinely theirs. Treat the
-mark as an asset and let a disciplined body face do everything else. **The contrast
-between the script mark and the quiet face is the identity**; matching them collapses it.
+Scale: 12 / 13.5 / 15 / 18 / 24 / 32 / 44 / 64. Kickers are Archivo 12px uppercase with
+3px tracking in cobre; buttons uppercase with 1.5px tracking, medium. Prices are Archivo
+semibold in vino, Colombian format `$120.000` through `formatCOP()`, always
+`tabular-nums` so the column aligns down the catalog grid.
 
-Instrument Sans over Inter: Inter is the reflex, and the reflex is what makes a design
-look generated. Instrument Sans keeps enough personality in the letterforms to feel chosen
-without raising its voice. Full Spanish diacritic coverage, free, weight range that stops
-where it should.
+The logo is **typographic** — Marcellus uppercase at 0.25em tracking, rendered as text via
+`.logo-wordmark`. The PNGs in `design_handoff_web_secreto/logos/` are for print and social,
+never for the web wordmark. Never go above weight 600 in Archivo.
 
-The mono is the argument worth defending. Prices, SKUs, and spec values in IBM Plex Mono
-with `font-variant-numeric: tabular-nums` do three things: the price column aligns down
-the catalog grid, the specs table reads as a datasheet, and the number stops looking like
-an Instagram promo and starts looking like a price list. In a category where the buyer's
-question is "is this a real business," a price that behaves like a catalogue entry answers
-it before any copy does. Plex Mono specifically over JetBrains or Geist Mono — those read
-as code editor, and this needs to read as institution.
+This replaces the earlier Instrument Sans + IBM Plex Mono pairing. The mono is gone on
+purpose: SECRETO's authority comes from the serif and the whitespace, and a monospace price
+next to a Marcellus product name reads as two unrelated brands. `tabular-nums` gets the
+column alignment that was the actual argument for the mono, without the second voice.
 
-Never above weight 600; the wordmark carries the weight. Body never below 16px — smaller
-triggers input zoom on iOS and reads as fine print, which costs trust here.
+**Geometry and motion.** Radii are nearly square — 2px buttons, 4px cards and inputs, 6px
+modals and images. Pills (999px) appear **only** on chips, badges, and the WhatsApp CTA.
+Exactly two shadows exist: `--shadow-card` on card hover, `--shadow-pop` on modals. Hover
+lightens the vino, cards lift 2px, links go vino → cobre; transitions 150–200ms ease, no
+bounces.
 
-**Dark-ground tracking.** Light text on near-black blooms optically. Add
-`letter-spacing: 0.01em` at 14px and below, `0.08em` on uppercase micro labels, and leave
-16px body untracked. This is the detail that separates a considered dark UI from a
-default one.
-
-**Signature.** The neon glow, used exactly once per view — the selected option state, or
-the add-to-cart. Never on body copy, never on multiple CTAs simultaneously. If the glow
-is everywhere it stops being a signature and becomes a nightclub.
-
-**Directions to avoid**, because they are what generative tools default to regardless of
-brief:
-
-- Cream background (`#F4F1EA`) + high-contrast serif + terracotta accent (`#D97757`)
-- Near-black background with a single acid-green accent
-- Broadsheet layout with hairline rules and zero border radius
-
-Near-black is right here — but it has to arrive from the logo, with magenta, not from
-default #2.
+**Signature.** The brand motif is the `divisor` — a thin rule, centered text, a thin rule.
+It is what separates the sections instead of a heading shouting.
 
 ### Personas
 
@@ -1102,36 +820,55 @@ panel on a phone, in a stockroom, one-handed.
 - Stock adjustment must be two taps
 - Low stock visible without searching for it
 
-### Screens for the first review
+### Screens in the review
 
 | Screen | Its single job |
 | --- | --- |
 | **Age gate** | Establish this is a legitimate, compliant business — in one screen, without friction theater |
-| **Home** | Prove this is XOXO, and put products one tap away |
-| **Catalog (PLP)** | Filter by category and brand down to what is actually in stock |
-| **Product detail (PDP)** | Answer options, price, specs, discretion, and shipping — then add to cart |
+| **Home** | Prove this is SECRETO, and put products one tap away |
+| **Catálogo (PLP)** | Filter by category and brand down to what is actually in stock |
+| **Producto (PDP)** | Answer options, price, specs, discretion, and shipping — then add to the bag |
+| **Checkout** | Three steps, guest by default, `contra entrega` as a first-class method |
 
-The age gate is part of the first review, not a later addition. It is the first thing
-every visitor sees, so it is part of what the client is approving.
+The age gate is part of the review, not a later addition. It is the first thing every
+visitor sees, so it is part of what the client is approving.
 
 ### Copy rules
 
-Words carry more weight than usual here. The register is a well-run pharmacy: plain,
-factual, unembarrassed.
+Words carry more weight than usual here. The register is a warm sommelier who recommends
+without judging: direct, elegant, unembarrassed. Spanish de "tú", `es-CO`.
 
 - Product names exactly as the manufacturer names them
 - Descriptions cover material, dimensions, function, care, compatibility
-- Never euphemistic, never crude, never explicit
+- Everything named naturally — never euphemistic, never crude, never explicit
+- **No emojis.** `→` and `↓` are the only ornaments
 - Say "envío discreto" and describe what that concretely means — unbranded outer
-  packaging, neutral sender name
+  packaging, neutral sender name, a neutral descriptor on the statement
+- The discretion promise repeats at every touchpoint: beside the price, as an "empaque
+  neutro" badge, in the announcement bar, in the checkout note
 - Errors explain what happened and how to fix it, in the interface's voice
+
+Full tone-of-voice guidance, with worked examples, is in
+`design_handoff_web_secreto/design_system/GUIA-DE-MARCA.md`.
+
+### Images
+
+Real product photography does not exist yet. Every image slot renders
+`ProductImagePlaceholder` — 4:5, diagonal arena stripes, a visible "Imagen pendiente"
+label in monospace. Never substitute stock photography: a placeholder prettier than the
+real asset means the client approves a design that cannot ship. Label the preview for her
+so this is explicit.
+
+The target is a photo session on the arena `#F1E7D8` background with warm, clean light.
+Until then the stripes stay, and the layout is built at 4:5 so real photos drop in without
+a reflow.
 
 ### Deliverable
 
-Static Next.js pages with seeded mock products from the real catalog — use their actual
-products and real prices, not lorem ipsum. Deploy to a Vercel preview and send the client
-a link, not screenshots. A link on her own phone, with her own products in it, is the
-difference between "looks nice" and a decision.
+Next.js pages rendering the demo catalog — the client's actual products at her actual
+prices, not lorem ipsum — deployed to a Vercel preview. Send the client a link, not
+screenshots. A link on her own phone, with her own products in it, is the difference
+between "looks nice" and a decision.
 
 ---
 
@@ -1147,23 +884,26 @@ Discover ──────► Choose ──────► Buy ─────�
  Categories      PDP            Payment     Tracking
 ```
 
-### Sprint 1 — Design (Phase 0)
+### Sprint 1 — Design (Phase 0) — **done**
 
-| # | Story | Acceptance criteria |
-| --- | --- | --- |
-| 0 | As a visitor, I confirm I'm over 18 before seeing any product | Age gate enforced in middleware on every catalog route; consent stored as boolean + timestamp cookie, no date of birth collected |
-| 1 | As a buyer, I see XOXO products as soon as the page loads, so I know I'm in the right place | Featured products above the fold on a 375px viewport; LCP < 2.5s on 4G |
-| 2 | As a buyer, I browse the catalog and see prices and availability | Grid renders seeded products from all three families; out-of-stock visibly distinct |
-| 3 | As a buyer, I open a product and choose its options | Option picker updates price and images; unavailable combinations disabled, not hidden; products with zero options render with no picker at all |
-| 4 | As Brayan, I have a token system so screens stay visually consistent | Colors, type scale, and spacing defined in `globals.css` `@theme` |
+| # | Story | Acceptance criteria | Status |
+| --- | --- | --- | --- |
+| 0 | As a visitor, I confirm I'm over 18 before seeing any product | Age gate driven from `src/proxy.ts` on every storefront route; consent stored as boolean + timestamp cookie, no date of birth collected | Done |
+| 1 | As a buyer, I see SECRETO products as soon as the page loads, so I know I'm in the right place | Featured products above the fold on a 375px viewport; LCP < 2.5s on 4G | Done — LCP unmeasured until real photography lands |
+| 2 | As a buyer, I browse the catalog and see prices and availability | Grid renders demo products from all three families; out-of-stock visibly distinct | Done |
+| 3 | As a buyer, I open a product and choose its options | Option picker updates price and images; unavailable combinations disabled, not hidden; products with zero options render with no picker at all | Done |
+| 4 | As Brayan, I have a token system so screens stay visually consistent | Colors, type scale, and spacing defined in `globals.css` `@theme`, mirroring the handoff tokens | Done |
 
 **Definition of done for Sprint 1:** deployed to a preview URL, responsive from 375px,
 keyboard focus visible, reduced motion respected, client link sent.
 
 ### Sprint 2 — Catalog
 
-Prisma schema and first migration · seed script with real XoXo products · admin
-product CRUD · Cloudinary image upload · catalog filters by category, size, color
+Prisma schema and first migration · seed script with the client's real products · admin
+product CRUD · Cloudinary image upload · catalog filters by category and brand
+
+Schema, migration, seed, and the category/brand filters are in. **Open:** admin CRUD and
+image upload — both wait on the photo session and on the client's full catalog list.
 
 ### Sprint 3 — Cart and checkout
 
@@ -1171,10 +911,15 @@ Zustand cart with persistence · cart drawer · address form with Colombian
 department/city and document fields · checkout against `MockProvider` · order creation
 and reservation logic
 
+The bag and the 3-step checkout exist as UI with client-side state. **Open:** everything
+server-side — no `Order` row is written yet, and no stock is reserved.
+
 ### Sprint 4 — Payments
 
-`PaymentProvider` port · Wompi adapter with integrity signature · webhook handler with
-signature verification and idempotency · reservation expiry cron · confirmation email
+`PaymentProvider` port · PayU adapter (Wompi second) · webhook handler with signature
+verification and idempotency · reservation expiry cron · confirmation email
+
+The port and `MockProvider` are in; the adapters wait on a merchant account.
 
 ### Prioritization note
 
@@ -1185,66 +930,53 @@ order. These are different things and conflating them is how this project slips.
 
 ## 10. Getting Started
 
-```bash
-# 1. Scaffold
-npx create-next-app@latest xoxo-store --typescript --tailwind --app --src-dir
-cd xoxo-store
-
-# 2. Database
-npm install prisma --save-dev
-npm install @prisma/client @prisma/adapter-pg pg
-npx prisma init --datasource-provider postgresql
-
-# 3. UI
-npx shadcn@latest init
-npx shadcn@latest add button card dialog input select sheet badge separator
-
-# 4. Domain dependencies
-npm install zod react-hook-form @hookform/resolvers next-safe-action zustand
-npm install lucide-react class-variance-authority clsx tailwind-merge date-fns nanoid
-
-# 5. Paste the schema from section 6.2, then
-npx prisma migrate dev --name init
-npx prisma db seed
-
-# 6. Verify
-npx prisma studio
-npm run dev
-```
-
-`.env.example`:
+The project is scaffolded; this is how you run it, not how it was built.
 
 ```bash
-DATABASE_URL="postgresql://user:pass@host:5432/xoxo?sslmode=require"
+npm install                   # postinstall runs `prisma generate`
+cp .env.example .env          # then fill in DATABASE_URL
 
-PAYMENT_PROVIDER="mock"          # mock | wompi | payu  — never stripe, see §2
-
-WOMPI_PUBLIC_KEY=""
-WOMPI_PRIVATE_KEY=""
-WOMPI_EVENTS_SECRET=""
-WOMPI_INTEGRITY_SECRET=""
-
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=""
-CLOUDINARY_API_KEY=""
-CLOUDINARY_API_SECRET=""
-
-RESEND_API_KEY=""
-BETTER_AUTH_SECRET=""
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+npx prisma migrate dev        # applies prisma/migrations
+npx prisma db seed            # demo catalog: 6 products, 14 variants
+npm run dev                   # http://localhost:3000
 ```
 
-### Order of work
+Verify with `npx prisma studio`, `npm run test`, and `npm run build`.
+
+**Running without a database.** Leave `DATABASE_URL` unset and every catalog query falls
+back to `src/features/catalog/fixtures.ts`, which serves the same products through the
+same DTOs. That is how the Phase 0 Vercel preview is deployed, and
+`src/features/catalog/parity.test.ts` is what keeps the two sources honest — it compares
+them through the real mappers whenever `DATABASE_URL` is set, and skips otherwise.
+
+Both sources read `src/features/catalog/demo-catalog.ts`. **Add demo products there**, not
+in the seed and not in the fixtures.
+
+A local Postgres, if you need one:
+
+```bash
+createdb secreto_dev
+# DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/secreto_dev?schema=public"
+```
+
+Environment variables are documented in `.env.example`, which is the authoritative list —
+including the ones not wired up yet. Add a variable there in the same commit that first
+reads it.
+
+### Order of work — how it actually went
 
 1. Scaffold and commit
 2. Write `CLAUDE.md` before writing features — it is what keeps Claude Code consistent
    across sessions
-3. Write the Prisma schema and seed script **before** the design screens, so Phase 0 can
-   render real shapes of data instead of hardcoded arrays
-4. Build the three screens
+3. Write the Prisma schema **before** the design screens, so Phase 0 renders real shapes
+   of data instead of hardcoded arrays
+4. Build the screens against fixtures typed as Prisma payloads
 5. Deploy the preview and send the link
+6. Then the database: migration, seed, and a parity check against the fixtures
 
-Step 3 is worth the extra hour. Design screens built against the real data shape do not
-need rebuilding when the database arrives.
+Steps 3 and 4 were worth the extra hour. Design screens built against the real data shape
+did not need rebuilding when the database arrived — enabling Postgres changed no page
+component at all.
 
 ---
 

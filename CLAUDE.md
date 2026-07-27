@@ -1,7 +1,12 @@
 # CLAUDE.md — SECRETO (antes XoXo Store)
 
 Guidance for Claude Code when working in this repository.
-Full specification: `docs/XOXO_TECHNICAL_SPEC.md`
+
+- Full specification: `docs/XOXO_TECHNICAL_SPEC.md`
+- Current state, open debt, and what to do next: `docs/ESTADO-Y-SIGUIENTE-SESION.md`
+- Design source of truth: `design_handoff_web_secreto/`
+- `docs/archive/` holds the **pre-rebrand** design docs (neon direction). They are
+  historical — never take design direction from them.
 
 ## What this is
 
@@ -40,7 +45,8 @@ Observed price range: COP 45,000–120,000.
 ## Compliance rules — do not negotiate these away
 
 1. **18+ age confirmation on first visit.** A dismissible modal, driven from
-   `middleware.ts`. Store only a boolean consent + timestamp in a cookie. Do **not**
+   `src/proxy.ts` (Next 16's rename of the `middleware.ts` convention — same mechanism).
+   Store only a boolean consent + timestamp in a cookie. Do **not**
    collect or persist date of birth — data minimization matters more here than anywhere
    else. Not a hard wall: the scaled competitor in this market runs no interstitial, and a
    blocking gate costs the Instagram traffic the project depends on.
@@ -71,12 +77,16 @@ Prisma 7 · PostgreSQL · Zod · next-safe-action · Zustand
 ```bash
 npm run dev                  # Turbopack dev server
 npm run build
-npx prisma migrate dev       # after any schema change
-npx prisma studio
-npx prisma db seed
 npm run test                 # vitest
+npm run lint
+npx prisma migrate dev       # after any schema change
+npx prisma db seed           # demo catalog into Postgres
+npx prisma studio
 npx playwright test
 ```
+
+The storefront runs **with or without a database**: leave `DATABASE_URL` unset and the
+catalog queries answer from fixtures instead (see "Demo data" below).
 
 ## Non-negotiable engineering rules
 
@@ -104,7 +114,9 @@ src/features/*         domain logic — queries.ts, actions.ts, schemas.ts, comp
 src/payments/          port + adapters, the only place gateway SDKs appear
 src/components/ui      shadcn primitives
 src/lib                db singleton, money, slug, utils
-middleware.ts          age gate
+src/components/site    header, footer, announcement bar, breadcrumb
+src/proxy.ts           age gate (Next 16 renamed middleware.ts → proxy.ts)
+prisma/migrations      applied migrations — never hand-edit one
 ```
 
 A change to one feature should touch one directory under `src/features/`.
@@ -149,8 +161,9 @@ Other model notes:
   denormalized `optionKey` on the variant (sorted, joined option value IDs) with
   `@@unique([productId, optionKey])`.
 - `ProductOptionValue.hex` is nullable — set for colors, null for sizes and volumes.
-- `ProductImage.optionValueId` is nullable: null applies to the whole product, set means
-  show it when that value is selected (color-specific photography).
+- `ProductMedia.optionValueId` is nullable: null applies to the whole product, set means
+  show it when that value is selected (color-specific photography). `ProductMedia` holds
+  images *and* video (`type`, `posterUrl`) — a third of what this client posts is video.
 - Available stock is always `stockOnHand - stockReserved`. Never expose `stockOnHand` to
   the storefront.
 
@@ -222,11 +235,31 @@ announcement bar).
   for invoicing.
 - Cash on delivery is `contra entrega` in the UI. Keep the client's existing vocabulary.
 
+## Demo data
+
+The demo catalog is declared **once**, in `src/features/catalog/demo-catalog.ts`, and
+consumed twice:
+
+- `prisma/seed.ts` writes it to Postgres, IDs included
+- `src/features/catalog/fixtures.ts` shapes it as Prisma payloads for the database-less
+  preview (`DATABASE_URL` unset)
+
+`src/features/catalog/parity.test.ts` proves the two sources serve identical DTOs. It
+compares them against a seeded database when `DATABASE_URL` is set, and skips otherwise.
+
+**Add or change demo products in `demo-catalog.ts` only** — never in the seed, never in
+the fixtures. Then re-run `npx prisma db seed` and `npm run test`.
+
 ## Current phase
 
-**Phase 0 — Design.** Home, catalog, and product detail with seeded mock data, deployed to
-a Vercel preview. `PAYMENT_PROVIDER=mock`. The age gate ships in Phase 0 — it is part of
-what the client is approving, not a later addition.
+**Phase 0 implemented, awaiting client sign-off.** Age gate, home, catálogo, producto, and
+a 3-step checkout (client-side bag, no `Order` written yet), deployed to a Vercel preview.
+`PAYMENT_PROVIDER=mock`. The age gate is part of what the client is approving, not a later
+addition.
+
+**Phase 1 in progress.** Schema, first migration, and seed are in; admin CRUD is the open
+half. `docs/ESTADO-Y-SIGUIENTE-SESION.md` tracks what is done, what is open debt, and what
+comes next — update it at the end of a working session.
 
 **Images.** Real product photography does not exist yet. Use
 `ProductImagePlaceholder` (4:5, diagonal arena stripes, visible "Imagen pendiente"

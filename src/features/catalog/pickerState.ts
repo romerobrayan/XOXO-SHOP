@@ -64,7 +64,7 @@ export function variantForSelection(
 // "not-offered": no stocked combination includes this value — it exists in the
 // catalog but the store never stocked it. "sold-out": combinations exist but
 // none has stock. Both render disabled AND visible — hiding a size reads as
-// the product not existing (DESIGN_BRIEF_PDP.md).
+// the product not existing (docs/archive/DESIGN_BRIEF_PDP.md).
 export type ValueAvailability = "selectable" | "sold-out" | "not-offered";
 
 export function valueAvailability(

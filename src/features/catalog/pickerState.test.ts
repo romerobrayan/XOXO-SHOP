@@ -78,7 +78,7 @@ describe("variantForSelection", () => {
 describe("valueAvailability", () => {
   it("marks a stocked-but-sold-out combination as sold-out, not hidden", () => {
     // With Negro selected, L exists in the catalog and is sold out — the chip
-    // must stay visible and announce that state (DESIGN_BRIEF_PDP.md).
+    // must stay visible and announce that state (docs/archive/DESIGN_BRIEF_PDP.md).
     expect(
       valueAvailability(options, variants, "talla", "l", { color: "negro" }),
     ).toBe("sold-out");

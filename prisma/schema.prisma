@@ -1,5 +1,6 @@
-// XoXo Store — catalog, inventory, orders, payments.
-// Modeling rationale: docs/XOXO_TECHNICAL_SPEC.md §6.
+// SECRETO (antes XOXO Store) — catalog, inventory, orders, payments.
+// Modeling rationale: docs/XOXO_TECHNICAL_SPEC.md §6. This file is the only
+// copy of the schema; the spec describes the decisions behind it, not the DDL.
 
 generator client {
   provider = "prisma-client"
@@ -268,7 +269,9 @@ enum DocumentType {
 
 model Order {
   id          String @id @default(cuid())
-  orderNumber String @unique // "XOXO-7F3K2M" — what the customer quotes on WhatsApp
+  // Short, human-readable code the customer quotes on WhatsApp — "SECRETO-7F3K2M".
+  // Customer-facing, so it carries the new brand, not the repository's name.
+  orderNumber String @unique
 
   // Nullable: guest checkout is mandatory in this category.
   customerId String?

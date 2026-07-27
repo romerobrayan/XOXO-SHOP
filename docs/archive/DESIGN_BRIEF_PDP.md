@@ -1,6 +1,14 @@
 # Design Brief — Product Detail Page (PDP)
 
-Paste this into Claude Design. Companion to `XOXO_TECHNICAL_SPEC.md` §8.
+> **SUPERSEDED — historical record, not a source of design truth.**
+> This brief describes the XOXO neon direction (magenta on near-black, Instrument Sans +
+> IBM Plex Mono). The client approved **SECRETO · Boutique Erótica** instead: marfil and
+> vino, Marcellus + Archivo. The design source of truth is `design_handoff_web_secreto/`.
+> What survives here is the market research and the PDP behavior reasoning — see
+> `docs/archive/README.md`.
+
+Written for a Claude Design session. Companion to the pre-rebrand `§8` of the technical
+spec, which has since been rewritten around the SECRETO handoff.
 
 ---
 
