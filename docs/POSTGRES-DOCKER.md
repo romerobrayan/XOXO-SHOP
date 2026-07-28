@@ -178,10 +178,20 @@ npm run dev          # la tienda en http://localhost:3000, ahora leyendo de Post
 ```
 
 `npm run test` es la comprobación que importa: `parity.test.ts` compara las dos
-fuentes de datos a través de los mappers reales y falla si divergen. Sin
-`DATABASE_URL` esas seis pruebas se saltan solas; con la base levantada y
-sembrada tienen que pasar. Si fallan con "the catalog is empty", te faltó el
-paso 6.
+fuentes de datos a través de los mappers reales y falla si divergen. Son 15
+pruebas — 9 invariantes que corren siempre y 6 contra Postgres. Sin
+`DATABASE_URL` esas seis se saltan solas; con la base levantada y sembrada
+tienen que pasar. Si fallan con "the catalog is empty", te faltó el paso 6.
+
+Si querés la prueba por contraste de que la tienda de verdad dejó de usar los
+fixtures, renombrá un producto directamente en Postgres y recargá `/tienda`:
+
+```bash
+docker compose exec db psql -U secreto -d secreto_dev \
+  -c $'update "Product" set name = \'PRUEBA\' where slug = \'conjunto-encaje\';'
+# recargá http://localhost:3000/tienda — tiene que decir PRUEBA
+npx prisma db seed   # y lo dejás como estaba
+```
 
 ---
 
@@ -213,6 +223,13 @@ docker compose down -v     # elimina el contenedor Y BORRA los datos
 `prisma.config.ts`, en `migrations.seed`), así que es la forma más rápida de
 volver a un estado limpio. Después de `down -v` hay que rehacer los pasos 2, 5
 y 6.
+
+> **`migrate reset` corrélo vos, a mano.** Prisma 7 detecta cuándo lo invoca un
+> agente de IA y se niega: pide consentimiento explícito porque el comando
+> destruye todos los datos y no sabe si apunta a desarrollo o a producción. Si
+> le pedís a Claude Code que resetee la base, va a frenar ahí y preguntarte. Es
+> el comportamiento correcto — no lo saltes con la variable de entorno que
+> sugiere el mensaje salvo que estés seguro de contra qué base estás corriendo.
 
 ---
 
