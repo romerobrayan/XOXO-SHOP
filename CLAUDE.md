@@ -79,14 +79,39 @@ npm run dev                  # Turbopack dev server
 npm run build
 npm run test                 # vitest
 npm run lint
-npx prisma migrate dev       # after any schema change
+npx prisma migrate dev       # generate a migration — LOCAL database only
+npx prisma migrate deploy    # apply existing migrations — Neon
 npx prisma db seed           # demo catalog into Postgres
 npx prisma studio
 npx playwright test
+docker compose start         # local database on / off
+docker compose stop
 ```
 
 The storefront runs **with or without a database**: leave `DATABASE_URL` unset and the
 catalog queries answer from fixtures instead (see "Demo data" below).
+
+## Database — two of them, on purpose
+
+**Neon is the primary database** (managed Postgres, `us-east-2`). It is up whether or
+not this machine is, and it is the same data the Vercel deployment reads. The local
+Docker Postgres stays for two jobs it alone can do: working offline, and being a
+throwaway database for generating migrations. `docs/NEON-CLOUD.md` and
+`docs/POSTGRES-DOCKER.md`. Switch by moving a `#` in `.env`.
+
+**The migration workflow is split, and getting it wrong is destructive:**
+
+1. `npx prisma migrate dev --name <what_changed>` against **local** — generates
+   `prisma/migrations/<timestamp>_<name>/`, which you commit.
+2. `npx prisma migrate deploy` against **Neon** — applies it. No shadow database, no
+   comparison, no data loss.
+
+**Never run `migrate dev`, `migrate reset`, or `db push` against Neon.** `reset` drops
+every row; `db push` applies changes without recording them in `_prisma_migrations`,
+which desynchronizes the history for everyone else.
+
+`prisma/seed.ts` opens with `deleteMany`. That is safe against a demo catalog and stops
+being safe the moment Neon holds a real order.
 
 ## Non-negotiable engineering rules
 

@@ -1,13 +1,18 @@
 # Postgres local con Docker
 
-Guía paso a paso para levantar la base de datos de SECRETO en tu máquina. Al
+Guía paso a paso para levantar una base de datos de SECRETO en tu máquina. Al
 terminar vas a tener el esquema completo aplicado y el catálogo de demostración
 cargado, con la tienda leyendo de Postgres en vez de los fixtures.
 
+> **Esta ya no es la base principal.** El proyecto trabaja contra **Neon**, una
+> Postgres gestionada — ver `docs/NEON-CLOUD.md`. La local sigue acá porque hace
+> dos cosas que Neon no: correr sin internet, y darte una base que podés resetear
+> sin miedo, que es lo que `prisma migrate dev` necesita para **generar**
+> migraciones. Ese sigue siendo su trabajo principal.
+
 El proyecto corre **con base de datos o sin ella**: si `DATABASE_URL` no está
 definida, cada consulta del catálogo cae a `src/features/catalog/fixtures.ts` y
-la tienda funciona igual. Esta guía es para cuando necesitás la base real —
-migraciones, seed, panel admin, órdenes.
+la tienda funciona igual.
 
 **Antes de empezar:** `npm install` tiene que haber corrido al menos una vez. El
 `postinstall` ejecuta `prisma generate`, que escribe el cliente en
@@ -27,9 +32,25 @@ Windows) o arrancá el servicio (`sudo systemctl start docker` en Linux) antes d
 seguir.
 
 Anotá el tag que te aparece en `docker image ls`. El `docker-compose.yml` de
-este repo pide `postgres:18-alpine`; si vos bajaste otro — `postgres:17`,
-`postgres:latest`, lo que sea — cambiá esa línea del compose por tu tag y no
-descargás nada nuevo. **Cualquier Postgres 14 o superior corre este esquema.**
+este repo pide `postgres:18-alpine`, pinneado a propósito. Si vos ya bajaste otro
+—`postgres:17`, `postgres:latest`, lo que sea— **no edites el compose**: creá un
+`docker-compose.override.yml` en la raíz, que está git-ignored, con solo esto:
+
+```yaml
+services:
+  db:
+    image: postgres:latest
+```
+
+Docker Compose lo mezcla solo. Así tu máquina usa la imagen que ya tenés y el
+repo conserva un tag fijo para todos los demás. **Cualquier Postgres 14 o
+superior corre este esquema.**
+
+El tag está pinneado por una razón concreta: con `latest` flotante, el día que
+la etiqueta pase a Postgres 19 la imagen va a buscar
+`PGDATA=/var/lib/postgresql/19/docker`, no lo va a encontrar, y va a inicializar
+un clúster **vacío** mientras tus datos siguen intactos en el subdirectorio
+`18/`. No se pierde nada, pero el diagnóstico no es obvio.
 
 ---
 
@@ -71,13 +92,17 @@ docker run -d \
   -e POSTGRES_PASSWORD=secreto \
   -e POSTGRES_DB=secreto_dev \
   -p 5432:5432 \
-  -v secreto_pgdata:/var/lib/postgresql/data \
+  -v secreto_pgdata:/var/lib/postgresql \
   --restart unless-stopped \
   postgres:18-alpine
 ```
 
 El `-v` no es opcional: sin volumen nombrado, `docker rm` se lleva la base
-entera. En el resto de la guía, donde diga `docker compose exec db`, con esta
+entera. Y el punto de montaje es `/var/lib/postgresql`, **no**
+`/var/lib/postgresql/data`: desde Postgres 18 la imagen guarda el clúster en un
+subdirectorio por versión mayor (`PGDATA=/var/lib/postgresql/18/docker`) y se
+niega a arrancar si el volumen está montado en la ruta vieja, porque ahí no
+persistiría nada. En el resto de la guía, donde diga `docker compose exec db`, con esta
 opción usás `docker exec secreto-postgres`.
 
 ---
@@ -248,6 +273,27 @@ El `-T` es necesario: sin él Docker asigna una TTY y te corrompe el archivo.
 ---
 
 ## Errores comunes
+
+**El contenedor queda en `Restarting` y `up --wait` corta con "container is unhealthy"**
+Mirá `docker compose logs db`. Si dice *"in 18+, these Docker images are
+configured to store database data in a format which is compatible with
+pg_ctlcluster"* y menciona `/var/lib/postgresql/data (unused mount/volume)`, es
+el punto de montaje del volumen.
+
+Desde Postgres 18 las imágenes oficiales guardan el clúster en un subdirectorio
+por versión mayor —`PGDATA=/var/lib/postgresql/18/docker`— y se niegan a
+arrancar si encuentran un volumen montado en la ruta vieja `.../data`, porque
+ahí no persistiría nada. El montaje va en el **directorio padre**:
+
+```yaml
+volumes:
+  - secreto_pgdata:/var/lib/postgresql      # sí
+  - secreto_pgdata:/var/lib/postgresql/data # no, en 18+
+```
+
+El compose de este repo ya está así. Aplica a todas las variantes de 18 —
+Debian y Alpine por igual— y montar el padre también funciona con Postgres ≤ 17,
+cuyo `PGDATA` es `/var/lib/postgresql/data`.
 
 **`P1001: Can't reach database server at localhost:5432`**
 El contenedor no está arriba o todavía no terminó de arrancar. `docker compose ps`

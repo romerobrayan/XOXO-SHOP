@@ -1,5 +1,6 @@
-# Local Postgres for development. Not a deployment artifact — production runs
-# on a managed database (Neon or Supabase), see .env.example.
+# Local Postgres — OPTIONAL. The project's primary database is Neon (managed),
+# see docs/NEON-CLOUD.md. This compose exists for working offline and for
+# generating migrations, which needs a database you are allowed to throw away.
 #
 #   docker compose up -d --wait     start, block until the healthcheck passes
 #   docker compose stop             stop, keep the data
@@ -8,8 +9,17 @@
 # Step by step: docs/POSTGRES-DOCKER.md
 services:
   db:
-    # Any Postgres >= 14 runs this schema. Change the tag to whichever image
-    # you already pulled — `docker image ls postgres` shows it.
+    # Pinned deliberately. Any Postgres >= 14 runs this schema, but a floating
+    # `latest` breaks silently: when the tag rolls to 19, the image looks for
+    # PGDATA=/var/lib/postgresql/19/docker, does not find it, and initializes an
+    # EMPTY cluster while your data sits untouched in the 18/ subdirectory.
+    #
+    # To run a different tag you already have locally, do NOT edit this line —
+    # create docker-compose.override.yml (git-ignored) with just:
+    #
+    #   services:
+    #     db:
+    #       image: postgres:<your-tag>
     image: postgres:18-alpine
     container_name: secreto-postgres
     restart: unless-stopped
@@ -26,7 +36,12 @@ services:
       # the left side to 5433 and update the port in DATABASE_URL to match.
       - "5432:5432"
     volumes:
-      - secreto_pgdata:/var/lib/postgresql/data
+      # Mount the PARENT, not .../data. Postgres 18+ images store the cluster in
+      # a major-version subdirectory (PGDATA=/var/lib/postgresql/18/docker) and
+      # refuse to start if a volume is mounted at the old .../data path, since
+      # nothing would actually persist there. Mounting the parent also works for
+      # Postgres <= 17, whose PGDATA is /var/lib/postgresql/data.
+      - secreto_pgdata:/var/lib/postgresql
     healthcheck:
       # `docker compose up --wait` and `depends_on: service_healthy` both key
       # off this — the container accepts connections a moment after it starts.

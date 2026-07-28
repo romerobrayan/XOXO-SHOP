@@ -4,7 +4,7 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 27 de julio de 2026 — sesión "Bloque A + Bloque B".
+**Última actualización:** 28 de julio de 2026 — sesión "Infraestructura de datos en la nube".
 
 ---
 
@@ -32,14 +32,23 @@ npm install                  # postinstall corre `prisma generate`
 npm run dev                  # sin base de datos: el catálogo sale de fixtures
 ```
 
-Con Postgres:
+Con base de datos — la principal es **Neon**, gestionada y siempre disponible
+(`docs/NEON-CLOUD.md`):
 
 ```bash
-cp .env.example .env         # completar DATABASE_URL
-npx prisma migrate dev
+cp .env.example .env         # DATABASE_URL = la cadena de Neon, ?sslmode=require
+npx prisma migrate deploy    # aplica prisma/migrations — NO migrate dev
 npx prisma db seed           # 6 productos, 14 variantes, 11 movimientos de inventario
 npm run test                 # incluye la paridad fixtures ↔ Postgres
 ```
+
+La Postgres local con Docker sigue disponible (`docs/POSTGRES-DOCKER.md`) para
+trabajar sin internet, para iterar rápido —es ~9× más veloz que Neon— y porque
+`prisma migrate dev` necesita una base descartable para **generar** migraciones.
+
+**El flujo de migraciones quedó partido en dos:** `migrate dev` contra la local
+para generar la carpeta de migración y commitearla, `migrate deploy` contra Neon
+para aplicarla. Nunca `migrate dev`, `migrate reset` ni `db push` contra Neon.
 
 El catálogo de demostración se declara **una sola vez** en
 `src/features/catalog/demo-catalog.ts`. El seed lo escribe en Postgres con los mismos IDs;
@@ -50,6 +59,50 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: mover la base de datos a la nube.** La sesión local no está
+disponible 24/7 y la arquitectura tiene que poder trabajar sin ella.
+
+**La base principal es Neon.** PostgreSQL 18.4 en `us-east-2`, base `neondb`.
+Esquema aplicado con `migrate deploy` (16 tablas), catálogo sembrado (6/14/11) y
+las 15 pruebas de `parity.test.ts` pasando contra Neon — las 6 que comparan
+fixtures contra Postgres corren de verdad, no se saltan. Comprobado por
+contraste: con el Postgres local apagado y el puerto 5432 caído, `/tienda` sigue
+respondiendo 200 con el catálogo completo, así que la tienda lee de Neon y no de
+los fixtures.
+
+**Dos bugs reales encontrados al ejecutar `docs/POSTGRES-DOCKER.md` en una
+máquina limpia.** Los dos estaban en `main`:
+
+- `docker-compose.yml` montaba el volumen en `/var/lib/postgresql/data`. Desde
+  Postgres 18 las imágenes oficiales guardan el clúster en un subdirectorio por
+  versión mayor (`PGDATA=/var/lib/postgresql/18/docker`) y se **niegan a
+  arrancar** si encuentran un volumen en la ruta vieja. El contenedor quedaba en
+  `Restarting` en bucle. No era una particularidad de la imagen que había en esa
+  máquina: consultando el manifiesto de `postgres:18-alpine` —el tag que el
+  propio repo documenta— aparece el mismo `PGDATA` en las 8 plataformas, así que
+  el compose commiteado estaba roto para cualquiera que siguiera la guía.
+  Arreglado montando el directorio padre, que además es compatible con
+  Postgres ≤ 17.
+- La Opción B de la guía (`docker run`) repetía el mismo `-v` equivocado.
+
+**El tag de la imagen quedó pinneado en `postgres:18-alpine`.** Un `latest`
+flotante en un archivo compartido es un fallo silencioso esperando: cuando la
+etiqueta pase a Postgres 19, la imagen va a buscar `.../19/docker`, no lo va a
+encontrar, y va a inicializar un clúster vacío con los datos intactos pero
+invisibles en `18/`. Para correr otra imagen que ya tengas local, ahora se usa
+`docker-compose.override.yml`, git-ignored.
+
+**Documentación:** `docs/NEON-CLOUD.md` nuevo — los dos endpoints de Neon
+(directo para migraciones, pooled para Vercel; los dos verificados), el flujo de
+migraciones partido, las variables que faltan en Vercel, la latencia medida y
+los errores comunes. `docs/POSTGRES-DOCKER.md` pasó a ser la guía secundaria y
+sumó el error de Postgres 18 a "Errores comunes". `README.md`, `CLAUDE.md` y
+`.env.example` al día.
+
+---
+
+### Sesión anterior — 27 de julio de 2026
 
 **Bloque A — sincronizar la documentación con SECRETO.**
 
@@ -144,6 +197,28 @@ Bloqueado por la clienta, no por el código. Hoy todo renderiza
 sobre fondo arena `#F1E7D8` con luz cálida, 4:5, subida a Cloudinary, y el modelo ya
 soporta imagen y video con `posterUrl`.
 
+### Bloque G — Arquitectura en la nube 🔄 en curso
+
+El objetivo es que nada dependa de que una máquina en particular esté prendida.
+Dónde estamos:
+
+| Pieza | Estado |
+| --- | --- |
+| Base de datos | ✅ **Neon**, gestionada, verificada de punta a punta |
+| Repositorio | ✅ GitHub |
+| Hosting | 🔄 Vercel — desplegado, pero **sin `DATABASE_URL`**, así que sirve fixtures |
+| Imágenes | ⬜ Cloudinary, decidido y sin implementar. Bloqueado por el Bloque E |
+| Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2 |
+| CI | ⬜ No existe. Ver deuda abierta |
+| Autenticación admin | ⬜ better-auth. Bloque D |
+
+Lo inmediato es cargar las variables de entorno en Vercel — `docs/NEON-CLOUD.md`
+§5 tiene la tabla exacta. Con eso la preview pasa a leer de Neon y un cambio en
+el catálogo se ve sin volver a desplegar.
+
+Lo único que queda deliberadamente local es el Postgres de Docker, y solo porque
+`prisma migrate dev` necesita una base descartable para generar migraciones.
+
 ### Bloque F — Pagos
 
 Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
@@ -156,6 +231,9 @@ idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider
 
 | Deuda | Nota |
 | --- | --- |
+| **Vercel no tiene `DATABASE_URL`** | La preview sigue sirviendo fixtures. Cargar en *Settings → Environment Variables* la cadena **pooled** de Neon (`-pooler` en el host) y `PAYMENT_PROVIDER=mock`. Ver `docs/NEON-CLOUD.md` §5. Es lo que falta para que la clienta vea los mismos datos que vos |
+| `sslmode=require` sin decidir | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana |
+| El seed borra antes de escribir | `prisma/seed.ts` abre con `deleteMany`. Contra el catálogo de demostración está bien; deja de ser seguro el día que Neon tenga un pedido real. Antes de la Fase 2 necesita un guardarraíl —negarse si hay filas en `Order`, o exigir una variable explícita |
 | No hay CI | No existe `.github/workflows`. `build`, `lint` y `test` se corren a mano. Es lo más barato de arreglar de esta lista |
 | Playwright instalado sin pruebas | `@playwright/test` está en `package.json` y no hay `playwright.config.ts` ni un solo test e2e. O se escribe el flujo de compra, o se saca la dependencia |
 | El checkout no persiste | Ver Bloque C. Mientras tanto, ningún pedido hecho en la preview existe |
