@@ -11,6 +11,7 @@ cash on delivery in Medellín, discretion as a functional requirement.
 | --- | --- |
 | `CLAUDE.md` | Operating manual: compliance rules, engineering rules, conventions |
 | `docs/ESTADO-Y-SIGUIENTE-SESION.md` | Current state, open debt, what to pick up next |
+| `docs/POSTGRES-DOCKER.md` | Step-by-step local database setup with Docker |
 | `docs/XOXO_TECHNICAL_SPEC.md` | Full technical specification |
 | `design_handoff_web_secreto/` | **Design source of truth** — tokens, brand guide, four hifi reference pages |
 | `docs/decisions/` | ADRs, starting with the payment provider |
@@ -32,14 +33,18 @@ That works with **no database**: every catalog query falls back to
 `src/features/catalog/fixtures.ts`, which serves the demo products through the
 same DTOs the live queries return. It is how the Phase 0 preview is deployed.
 
-With Postgres:
+With Postgres — `docker-compose.yml` brings up a local one:
 
 ```bash
+docker compose up -d --wait  # postgres on :5432, data in a named volume
 cp .env.example .env         # fill in DATABASE_URL
 npx prisma migrate dev       # apply prisma/migrations
 npx prisma db seed           # demo catalog: 6 products, 14 variants
 npm run dev
 ```
+
+`docs/POSTGRES-DOCKER.md` walks through it step by step, including reset,
+backups, and the errors worth recognizing.
 
 Both data sources read one declaration,
 `src/features/catalog/demo-catalog.ts` — add demo products there, not in the
