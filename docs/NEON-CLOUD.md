@@ -126,23 +126,48 @@ tenga pedidos reales, ese comando deja de ser seguro.**
 
 ---
 
-## 5. Desplegar en Vercel
+## 5. Vercel — hecho
 
-Falta hacerlo. Lo que hay que cargar en *Settings → Environment Variables* del
-proyecto:
+Proyecto **`secretxoxo-shop`** en el equipo `romero-sdev`, importado desde
+`romerobrayan/XOXO-SHOP`, así que cada push a `main` despliega solo y cada PR
+recibe su propia URL de preview.
+
+Producción: https://secretxoxo-shop.vercel.app
+
+Variables cargadas en *Settings → Environment Variables*, para Production y
+Preview:
 
 | Variable | Valor |
 | --- | --- |
-| `DATABASE_URL` | la cadena **pooled**, con `?sslmode=require` |
+| `DATABASE_URL` | la cadena **pooled** (`-pooler` en el host), con `?sslmode=require` |
 | `PAYMENT_PROVIDER` | `mock` |
 
-Con `DATABASE_URL` cargada, la preview deja de servir fixtures y pasa a leer de
-Neon — la clienta y vos ven exactamente el mismo catálogo, y un cambio hecho
-desde el panel admin se refleja en la preview sin volver a desplegar.
+No están cargadas en Development, y está bien: ese entorno es para `vercel dev`,
+y acá se trabaja con `npm run dev` leyendo el `.env` local.
 
-Si preferís que la preview siga sirviendo fixtures, simplemente no cargues
+**Comprobado que el despliegue lee de Neon, no fixtures.** No alcanza con que
+`/tienda` responda 200: las dos fuentes sirven exactamente el mismo contenido por
+diseño, así que el HTML no distingue. Se midió del lado de la base, contando
+lecturas sobre la tabla `Product`:
+
+```bash
+select coalesce(seq_scan,0)+coalesce(idx_scan,0)
+from pg_stat_user_tables where relname='Product';
+```
+
+15 segundos en reposo → delta 0. Tres peticiones a producción → delta 9, tres
+lecturas por render. Ojo con el tiempo de espera: las estadísticas de Postgres
+tardan en asentar y a los 2 segundos todavía dan 0, lo que parece un falso
+negativo.
+
+Si alguna vez querés que un entorno vuelva a servir fixtures, borrá su
 `DATABASE_URL`: `src/features/catalog/queries.ts` cae a
 `src/features/catalog/fixtures.ts` cuando la variable no existe.
+
+**Latencia en producción, contra la medida desde acá:** Vercel despliega en
+US-East, al lado de Neon, así que `/tienda` responde en **0,46–0,67 s** contra
+los ~1,8 s que tarda desde una máquina en Colombia. El costo de latencia de la
+sección 6 lo paga el desarrollo local, no el visitante.
 
 ---
 

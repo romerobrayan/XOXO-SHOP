@@ -71,6 +71,14 @@ contraste: con el Postgres local apagado y el puerto 5432 caído, `/tienda` sigu
 respondiendo 200 con el catálogo completo, así que la tienda lee de Neon y no de
 los fixtures.
 
+**El despliegue quedó en Vercel.** Proyecto `secretxoxo-shop`, importado desde el
+repositorio, así que cada push a `main` despliega solo y cada PR recibe su URL de
+preview. `DATABASE_URL` —con el endpoint **pooled** de Neon, el que aguanta que
+cada invocación serverless abra su propia conexión— y `PAYMENT_PROVIDER=mock`
+cargadas en Production y Preview. Producción responde `/tienda` en 0,46–0,67 s,
+bastante mejor que los ~1,8 s desde una máquina en Colombia: Vercel y Neon están
+los dos en US-East.
+
 **Dos bugs reales encontrados al ejecutar `docs/POSTGRES-DOCKER.md` en una
 máquina limpia.** Los dos estaban en `main`:
 
@@ -206,18 +214,22 @@ Dónde estamos:
 | --- | --- |
 | Base de datos | ✅ **Neon**, gestionada, verificada de punta a punta |
 | Repositorio | ✅ GitHub |
-| Hosting | 🔄 Vercel — desplegado, pero **sin `DATABASE_URL`**, así que sirve fixtures |
+| Hosting | ✅ **Vercel** — `secretxoxo-shop`, importado desde el repo, con variables cargadas y leyendo de Neon |
 | Imágenes | ⬜ Cloudinary, decidido y sin implementar. Bloqueado por el Bloque E |
 | Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2 |
 | CI | ⬜ No existe. Ver deuda abierta |
 | Autenticación admin | ⬜ better-auth. Bloque D |
 
-Lo inmediato es cargar las variables de entorno en Vercel — `docs/NEON-CLOUD.md`
-§5 tiene la tabla exacta. Con eso la preview pasa a leer de Neon y un cambio en
-el catálogo se ve sin volver a desplegar.
+**Producción:** https://secretxoxo-shop.vercel.app — cada push a `main` despliega
+solo y cada PR recibe su URL de preview. Comprobado que lee de Neon contando
+lecturas sobre `Product` del lado de la base, no confiando en que responda 200:
+las dos fuentes sirven contenido idéntico por diseño y el HTML no las distingue.
+Detalle en `docs/NEON-CLOUD.md` §5.
 
 Lo único que queda deliberadamente local es el Postgres de Docker, y solo porque
 `prisma migrate dev` necesita una base descartable para generar migraciones.
+
+Lo próximo de este bloque es CI y el `revalidate` de la home (deuda abierta).
 
 ### Bloque F — Pagos
 
@@ -231,7 +243,7 @@ idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider
 
 | Deuda | Nota |
 | --- | --- |
-| **Vercel no tiene `DATABASE_URL`** | La preview sigue sirviendo fixtures. Cargar en *Settings → Environment Variables* la cadena **pooled** de Neon (`-pooler` en el host) y `PAYMENT_PROVIDER=mock`. Ver `docs/NEON-CLOUD.md` §5. Es lo que falta para que la clienta vea los mismos datos que vos |
+| **La home sirve un catálogo congelado** | `src/app/(storefront)/page.tsx` consulta la base para "Top ventas" y las categorías, pero el build la marca `○` estática: queda prerenderizada y no refleja cambios en Neon hasta el próximo deploy. `/tienda` y `/tienda/[slug]` son `ƒ` dinámicas y sí actualizan. Se arregla con `export const revalidate = 300`. **No** usar `force-dynamic`: la home es la página más visitada y pagaría el viaje a la base en cada visita |
 | `sslmode=require` sin decidir | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana |
 | El seed borra antes de escribir | `prisma/seed.ts` abre con `deleteMany`. Contra el catálogo de demostración está bien; deja de ser seguro el día que Neon tenga un pedido real. Antes de la Fase 2 necesita un guardarraíl —negarse si hay filas en `Order`, o exigir una variable explícita |
 | No hay CI | No existe `.github/workflows`. `build`, `lint` y `test` se corren a mano. Es lo más barato de arreglar de esta lista |
