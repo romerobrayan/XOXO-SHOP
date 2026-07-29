@@ -4,6 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 - Full specification: `docs/XOXO_TECHNICAL_SPEC.md`
 - Current state, open debt, and what to do next: `docs/ESTADO-Y-SIGUIENTE-SESION.md`
+- Supplier catalog import (staging → curation → promote): `docs/IMPORT-PROVEEDORES.md`
 - Design source of truth: `design_handoff_web_secreto/`
 - `docs/archive/` holds the **pre-rebrand** design docs (neon direction). They are
   historical — never take design direction from them.
@@ -86,6 +87,13 @@ npx prisma studio
 npx playwright test
 docker compose start         # local database on / off
 docker compose stop
+npm run import:check         # Cloudinary preflight (real test upload)
+npm run import:distrisex     # supplier → data/import/staging (git-ignored)
+npm run import:climax
+npm run import:revision      # local curation page over the staging
+npm run import:promote       # approved subset → Cloudinary + LOCAL db
+                             # (--neon only after client sign-off; it refuses
+                             #  Neon otherwise — docs/IMPORT-PROVEEDORES.md)
 ```
 
 The storefront runs **with or without a database**: leave `DATABASE_URL` unset and the
