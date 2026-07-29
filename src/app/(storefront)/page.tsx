@@ -11,6 +11,14 @@ import { NewsletterForm } from "@/features/home/components/NewsletterForm";
 // Home per the handoff: héroe con el slogan, categorías con el divisor de
 // marca, "Top ventas" con modal de producto, pilares, asesoría/newsletter.
 // El héroe es la única zona con degradado; todo lo demás son bandas planas.
+
+// Without this the page is prerendered at build time and "Top ventas" serves a
+// frozen snapshot: a price changed in the database shows on /tienda but not
+// here until the next deploy. Re-render at most every 5 minutes — not
+// force-dynamic, which would make the most visited page pay a database round
+// trip on every visit.
+export const revalidate = 300;
+
 export default async function HomePage() {
   const [products, categories] = await Promise.all([
     getProducts(),

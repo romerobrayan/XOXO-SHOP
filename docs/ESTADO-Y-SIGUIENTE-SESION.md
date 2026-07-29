@@ -4,7 +4,8 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 28 de julio de 2026 — sesión "Infraestructura de datos en la nube".
+**Última actualización:** 29 de julio de 2026 — sesión "Infraestructura de datos en la nube"
+y su remate: CI, `revalidate` de la home y guardarraíl del seed.
 
 ---
 
@@ -78,6 +79,17 @@ cada invocación serverless abra su propia conexión— y `PAYMENT_PROVIDER=mock
 cargadas en Production y Preview. Producción responde `/tienda` en 0,46–0,67 s,
 bastante mejor que los ~1,8 s desde una máquina en Colombia: Vercel y Neon están
 los dos en US-East.
+
+**Remate de la sesión (29 de julio):** tres deudas saldadas en un PR chico.
+CI en `.github/workflows/ci.yml` — lint, migraciones, seed, la suite completa
+(las 44, paridad incluida, contra un Postgres real de servicio) y build, en cada
+push y PR a `main`. `export const revalidate = 300` en la home, que estaba
+prerenderizada y servía un "Top ventas" congelado al momento del build. Y el
+guardarraíl del seed: se niega a correr si la base tiene pedidos, salvo
+`SEED_ALLOW_ORDER_WIPE=1` — al mirar el schema resultó peor de lo anotado,
+porque borrar variantes hace `SetNull` sobre `OrderItem.variantId` y el
+`deleteMany` de movimientos se lleva el libro de inventario de pedidos reales:
+corrupción silenciosa, sin error de FK que avise.
 
 **Dos bugs reales encontrados al ejecutar `docs/POSTGRES-DOCKER.md` en una
 máquina limpia.** Los dos estaban en `main`:
@@ -205,6 +217,12 @@ Bloqueado por la clienta, no por el código. Hoy todo renderiza
 sobre fondo arena `#F1E7D8` con luz cálida, 4:5, subida a Cloudinary, y el modelo ya
 soporta imagen y video con `posterUrl`.
 
+### Bloque F — Pagos
+
+Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
+y el mock ya existen; el adaptador de PayU y el webhook con verificación de firma e
+idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md`.
+
 ### Bloque G — Arquitectura en la nube 🔄 en curso
 
 El objetivo es que nada dependa de que una máquina en particular esté prendida.
@@ -215,9 +233,9 @@ Dónde estamos:
 | Base de datos | ✅ **Neon**, gestionada, verificada de punta a punta |
 | Repositorio | ✅ GitHub |
 | Hosting | ✅ **Vercel** — `secretxoxo-shop`, importado desde el repo, con variables cargadas y leyendo de Neon |
+| CI | ✅ `.github/workflows/ci.yml` — lint, migraciones, seed, suite completa y build contra un Postgres real en cada push y PR a `main` |
 | Imágenes | ⬜ Cloudinary, decidido y sin implementar. Bloqueado por el Bloque E |
 | Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2 |
-| CI | ⬜ No existe. Ver deuda abierta |
 | Autenticación admin | ⬜ better-auth. Bloque D |
 
 **Producción:** https://secretxoxo-shop.vercel.app — cada push a `main` despliega
@@ -229,24 +247,13 @@ Detalle en `docs/NEON-CLOUD.md` §5.
 Lo único que queda deliberadamente local es el Postgres de Docker, y solo porque
 `prisma migrate dev` necesita una base descartable para generar migraciones.
 
-Lo próximo de este bloque es CI y el `revalidate` de la home (deuda abierta).
-
-### Bloque F — Pagos
-
-Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
-y el mock ya existen; el adaptador de PayU y el webhook con verificación de firma e
-idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md`.
-
 ---
 
 ## 5. Deuda abierta
 
 | Deuda | Nota |
 | --- | --- |
-| **La home sirve un catálogo congelado** | `src/app/(storefront)/page.tsx` consulta la base para "Top ventas" y las categorías, pero el build la marca `○` estática: queda prerenderizada y no refleja cambios en Neon hasta el próximo deploy. `/tienda` y `/tienda/[slug]` son `ƒ` dinámicas y sí actualizan. Se arregla con `export const revalidate = 300`. **No** usar `force-dynamic`: la home es la página más visitada y pagaría el viaje a la base en cada visita |
 | `sslmode=require` sin decidir | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana |
-| El seed borra antes de escribir | `prisma/seed.ts` abre con `deleteMany`. Contra el catálogo de demostración está bien; deja de ser seguro el día que Neon tenga un pedido real. Antes de la Fase 2 necesita un guardarraíl —negarse si hay filas en `Order`, o exigir una variable explícita |
-| No hay CI | No existe `.github/workflows`. `build`, `lint` y `test` se corren a mano. Es lo más barato de arreglar de esta lista |
 | Playwright instalado sin pruebas | `@playwright/test` está en `package.json` y no hay `playwright.config.ts` ni un solo test e2e. O se escribe el flujo de compra, o se saca la dependencia |
 | El checkout no persiste | Ver Bloque C. Mientras tanto, ningún pedido hecho en la preview existe |
 | Admin sin construir | Ver Bloque D |

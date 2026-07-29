@@ -1,0 +1,68 @@
+# Build, lint, and the full test suite on every push and PR to main.
+#
+# The job runs against a real Postgres service container so the 6 parity tests
+# in src/features/catalog/parity.test.ts actually execute — without
+# DATABASE_URL they skip themselves and CI would validate less than a laptop
+# with the database up. The container is created empty on every run, so the
+# seed's order-wipe guardrail never triggers here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Same major version as production (Neon runs Postgres 18).
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: secreto
+          POSTGRES_PASSWORD: secreto
+          POSTGRES_DB: secreto_test
+        ports:
+          - 5432:5432
+        # The runner starts the job as soon as the container is up, which is
+        # before Postgres accepts connections — same race docs/POSTGRES-DOCKER.md
+        # warns about with `up -d` vs `up -d --wait`.
+        options: >-
+          --health-cmd "pg_isready -U secreto -d secreto_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: "postgresql://secreto:secreto@localhost:5432/secreto_test?schema=public"
+      PAYMENT_PROVIDER: "mock"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Vercel project (Node 24.x).
+          node-version: 24
+          cache: npm
+
+      - name: Install (postinstall runs prisma generate)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed demo catalog
+        run: npx prisma db seed
+
+      - name: Test — full suite, parity included
+        run: npm run test
+
+      - name: Build
+        run: npm run build
