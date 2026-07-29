@@ -40,6 +40,10 @@ yarn-error.log*
 # per-machine docker overrides (e.g. a different postgres tag you already pulled)
 docker-compose.override.yml
 
+# supplier import working area — staging dumps and the review page are
+# regenerable third-party data; only scripts/import/seleccion.json is committed
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

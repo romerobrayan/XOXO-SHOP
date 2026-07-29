@@ -9,7 +9,12 @@
     "lint": "eslint",
     "format": "prettier --write .",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "import:check": "tsx scripts/import/check-cloudinary.ts",
+    "import:distrisex": "tsx scripts/import/fetch-distrisex.ts",
+    "import:climax": "tsx scripts/import/fetch-climax.ts",
+    "import:revision": "tsx scripts/import/revision.ts",
+    "import:promote": "tsx scripts/import/promote.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -42,6 +47,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cloudinary": "^2.10.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
