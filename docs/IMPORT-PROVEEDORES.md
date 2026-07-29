@@ -132,6 +132,13 @@ El promote corre **contra la local de Docker** por defecto
 staging aprobada por la clienta, lista para publicarse en la base que ve el
 despliegue.
 
+Publicar a Neon también se puede **sin la máquina local**: el workflow manual
+"Promote catalog to Neon" (`.github/workflows/promote-catalogo.yml`) baja el
+staging fresco y corre el promote desde Actions. Requiere dos secrets del
+repo (`NEON_DATABASE_URL_DIRECT` — endpoint directo, sin `-pooler` — y
+`CLOUDINARY_URL`) y solo se dispara a mano, confirmando con "si". El botón es
+la firma humana: nada publica solo.
+
 `IMPORT_DATABASE_URL` existe para una local no estándar (p. ej. puerto 5433),
 no para apuntar a Neon por la puerta de atrás.
 

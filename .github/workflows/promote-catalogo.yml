@@ -1,0 +1,56 @@
+# Promotes the approved supplier-catalog subset to Neon — the production
+# database — from the cloud, so publishing does not depend on any particular
+# machine being on (Bloque G).
+#
+# MANUAL ONLY, on purpose. The trigger is a human pressing "Run workflow" and
+# typing "si": the same sign-off gate as running
+# `npm run import:promote -- --neon` from a laptop (docs/IMPORT-PROVEEDORES.md
+# §7). Nothing here runs on push.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   NEON_DATABASE_URL_DIRECT   Neon DIRECT endpoint (no -pooler), ?sslmode=require
+#   CLOUDINARY_URL             cloudinary://KEY:SECRET@CLOUD_NAME
+name: Promote catalog to Neon
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_aprobado:
+        description: 'Escribí "si" para confirmar que la selección en scripts/import/seleccion.json está aprobada'
+        required: true
+        default: "no"
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Confirmación explícita
+        if: ${{ github.event.inputs.staging_aprobado != 'si' }}
+        run: |
+          echo 'La selección no está confirmada — escribí "si" en staging_aprobado para publicar.'
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install (postinstall runs prisma generate)
+        run: npm ci
+
+      # data/import/ is git-ignored by design: staging is regenerable supplier
+      # data. The runner fetches it fresh, politely (rate limit + identifiable
+      # User-Agent), right before promoting.
+      - name: Fetch staging from both suppliers
+        run: |
+          npm run import:distrisex
+          npm run import:climax
+
+      - name: Promote approved subset to Neon
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_DIRECT }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+        run: npm run import:promote -- --neon
