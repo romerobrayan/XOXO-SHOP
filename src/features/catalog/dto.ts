@@ -41,6 +41,9 @@ export type ProductCardDTO = {
   // Set only for option-less products with stock — powers the direct
   // "Agregar al carrito" card CTA. Products with options route to the PDP.
   addToCartVariantId: string | null;
+  // First media item, already a Cloudinary delivery URL. Null renders the
+  // striped placeholder — still the norm until supplier photography lands.
+  image: { url: string; alt: string } | null;
 };
 
 export type ProductDetailDTO = {
@@ -91,6 +94,19 @@ export function toProductCard(p: ProductCardPayload): ProductCardDTO {
     : null;
 
   const hasOptions = p.options.length > 0;
+
+  // Cards show the primary media item; a leading video falls back to its
+  // poster frame (never autoplay in a grid) or to the placeholder.
+  const primary = p.media[0] ?? null;
+  const image =
+    primary === null
+      ? null
+      : primary.type === "VIDEO"
+        ? primary.posterUrl
+          ? { url: primary.posterUrl, alt: primary.alt }
+          : null
+        : { url: primary.url, alt: primary.alt };
+
   return {
     id: p.id,
     slug: p.slug,
@@ -109,6 +125,7 @@ export function toProductCard(p: ProductCardPayload): ProductCardDTO {
       !hasOptions && totalAvailable > 0 && p.variants[0]
         ? p.variants[0].id
         : null,
+    image,
   };
 }
 
