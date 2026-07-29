@@ -1,0 +1,84 @@
+{
+  "_ayuda": [
+    "Curaduría del catálogo importado: SOLO lo listado en `approved` pasa al catálogo real (npm run import:promote).",
+    "Los supplierRef salen de data/import/revision.html (npm run import:revision) o de data/import/staging-*.json.",
+    "salePriceCOP: precio de venta en pesos completos (opcional). Si falta, se aplica pricing.marginPct sobre el precio del proveedor y se redondea hacia arriba a roundUpToCOP.",
+    "El precio del proveedor es REFERENCIA: Climax es competidor minorista en Medellín (margen 0 = igualar su precio de vitrina); DistriSex publica precio mayorista.",
+    "pricing.marginPct es un default de trabajo — el margen real por categoría es una decisión de la clienta que sigue PENDIENTE.",
+    "categorySlug y brand solo hace falta ponerlos cuando la sugerencia del staging está mal. initialStock aplica SOLO al crear el producto (entra por el libro de inventario); re-correr el import nunca toca stock ni precios existentes.",
+    "Esta lista es la selección de DEMOSTRACIÓN de la sesión de pipeline — la curaduría real de la clienta la reemplaza."
+  ],
+  "pricing": {
+    "marginPct": { "distrisex": 50, "climax": 0 },
+    "roundUpToCOP": 500
+  },
+  "approved": [
+    {
+      "supplierRef": "climax:liguero-lucy-rojo",
+      "initialStock": 5,
+      "note": "lencería Climax sin opciones — el ejemplo del reconocimiento"
+    },
+    {
+      "supplierRef": "distrisex:17382",
+      "initialStock": 4,
+      "note": "Conjunto Lencería Leda Lerot — Talla con precio por variación (ejercita el fetch de variaciones Woo)"
+    },
+    {
+      "supplierRef": "distrisex:16702",
+      "initialStock": 6,
+      "note": "Body Renata Lerot — Talla x3, precio fijo"
+    },
+    {
+      "supplierRef": "climax:babydoll-provocacion",
+      "initialStock": 3
+    },
+    {
+      "supplierRef": "distrisex:18763",
+      "initialStock": 8,
+      "note": "Gel Elixir — Tamaño x5 con precio por variación"
+    },
+    {
+      "supplierRef": "climax:lubricante-neutro-sen-intimo-1",
+      "initialStock": 6,
+      "note": "opciones Shopify con precio real por variante"
+    },
+    {
+      "supplierRef": "climax:lubricante-de-silicona-30-ml-sen-intimo",
+      "initialStock": 4
+    },
+    {
+      "supplierRef": "distrisex:20506",
+      "salePriceCOP": 20000,
+      "initialStock": 10,
+      "note": "Retardante Thunder — ejercita el override de precio (mayorista $6.300)"
+    },
+    {
+      "supplierRef": "distrisex:15964",
+      "initialStock": 2,
+      "note": "Lovense Diamo — marca filtrable, sin opciones, gama alta"
+    },
+    {
+      "supplierRef": "climax:pretty-love-gene",
+      "initialStock": 3
+    },
+    {
+      "supplierRef": "climax:huevo-masturbador-funny-egg",
+      "initialStock": 6,
+      "note": "Color x6 con foto por variante (ProductMedia.optionValueId)"
+    },
+    {
+      "supplierRef": "climax:plug-cola-zorro",
+      "initialStock": 4
+    },
+    {
+      "supplierRef": "climax:kit-sado-10-piezas",
+      "initialStock": 2,
+      "note": "12 fotos — ejercita el tope de imágenes por producto"
+    },
+    {
+      "supplierRef": "distrisex:16310",
+      "initialStock": 3,
+      "note": "Bala Satisfyer — juguetería DistriSex"
+    }
+  ]
+}

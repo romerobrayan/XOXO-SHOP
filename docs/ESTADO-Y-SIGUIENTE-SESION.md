@@ -4,8 +4,9 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 29 de julio de 2026 — sesión "Infraestructura de datos en la nube"
-y su remate: CI, `revalidate` de la home y guardarraíl del seed.
+**Última actualización:** 29 de julio de 2026 — sesión "Importación del catálogo de
+proveedores": pipeline staging → curaduría → promote, Cloudinary activo, y las
+tarjetas del catálogo mostrando fotografía real.
 
 ---
 
@@ -14,7 +15,7 @@ y su remate: CI, `revalidate` de la home y guardarraíl del seed.
 | Fase | Estado |
 | --- | --- |
 | **0 — Diseño** | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta |
-| **1 — Catálogo** | **En curso.** Esquema, primera migración y seed listos. Falta el CRUD del panel admin |
+| **1 — Catálogo** | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
 | **2 — Carrito y checkout** | No empezada. El checkout actual es solo UI: no escribe `Order` ni reserva stock |
 | **3 — Pagos** | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio |
 | **4 — Admin y lanzamiento** | No empezada |
@@ -60,6 +61,83 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: construir el catálogo real importando desde los dos proveedores de
+la clienta.** Ella no tiene catálogo propio — todo sale de
+distrisexcolombia.com (WooCommerce, mayorista, ~900 productos) y climax.com.co
+(Shopify, competidor minorista, ~376). Los proveedores ya habían autorizado
+usar sus fotos y datos. Runbook completo: `docs/IMPORT-PROVEEDORES.md`.
+
+**El pipeline es curaduría antes que volcado.** `scripts/import/` con cinco
+comandos: `import:check` (preflight de Cloudinary con subida real),
+`import:distrisex` / `import:climax` (bajan TODO a staging git-ignored, con
+rate limit de 700 ms, User-Agent identificable y robots.txt verificado — ambas
+APIs son públicas y permitidas), `import:revision` (página HTML local con los
+1.275 productos, fotos, filtros y export de la selección) e `import:promote`
+(solo lo aprobado en `scripts/import/seleccion.json` — commiteado — pasa al
+catálogo).
+
+**La normalización cae limpia en el modelo polimórfico.** Woo regala la
+distinción opción-vs-spec (`attributes[].has_variations`); el registro INVIMA
+llega como spec. Shopify trae opciones/variantes con precio y SKU reales; las
+fotos que Shopify ata a un color quedan con `ProductMedia.optionValueId`. Todo
+producto termina con ≥1 variante por construcción. El listado de Woo no trae
+precio por variación: si `price_range` existe, el promote pide cada variación
+individual — solo de lo aprobado, así son un puñado de peticiones (verificado:
+Leda Lerot SM $110.000 / ML $82.000 con SKUs reales del proveedor).
+
+**El precio del proveedor es referencia, nunca precio de venta.** Climax es
+competidor minorista y DistriSex publica mayorista (a veces con "Precio
+sugerido" escondido en el HTML — se conserva como pista). El precio de venta
+sale de `seleccion.json`: override por producto o margen por proveedor
+(defaults de trabajo: DistriSex +50 %, Climax +0 %), redondeado hacia arriba.
+**El margen real por categoría sigue siendo decisión pendiente de la clienta.**
+
+**Cloudinary quedó activo y con las fotos fluyendo.** Preflight verificado
+contra la cuenta real (`cs2uzjap`), 57 imágenes de proveedor re-hospedadas
+(nunca hotlink, nunca al repo), `public_id` determinista por hash del origen y
+URL de entrega con la transformación de la guía de marca
+(`c_pad,ar_4:5,b_rgb:F1E7D8,f_auto,q_auto` — 4:5 sobre arena). El Bloque E ya
+no necesita preprocesamiento manual para fotos de proveedor.
+`CLOUDINARY_URL` documentada en `.env.example` en el mismo commit que empezó a
+leerla.
+
+**Idempotencia por `Product.supplierRef`** (namespaced `distrisex:<id>` /
+`climax:<handle>`): re-correr actualiza y jamás duplica — variantes por
+`optionKey`, media por URL determinista, slug estable, y el stock **nunca** se
+toca en updates. El stock inicial entra por `InventoryMovement` en la misma
+transacción (regla 3). Verificado en corrida doble: `14 created → 14 updated,
+0 duplicados, 0 re-subidas`, y el libro de inventario concilia en las 42
+variantes de la base local.
+
+**Guardarraíl de base de datos:** el promote corre contra la local de Docker;
+si la URL apunta a `neon.tech` sin `--neon` explícito, se niega (probado). A
+Neon solo cuando la clienta apruebe el staging. `SEED_ALLOW_ORDER_WIPE` quedó
+intacto.
+
+**Las tarjetas del catálogo ahora muestran fotografía real.** La galería del
+PDP ya sabía renderizar `ProductMedia`; la tarjeta tenía el placeholder
+cableado en duro y `ProductCardDTO` ni siquiera exponía imagen. Se agregó
+`image` al DTO (primer media; un video cae a su `posterUrl`) y el `<img>` 4:5
+en `ProductCard` — placeholder solo cuando no hay foto, que sigue siendo el
+caso de los 6 productos demo. Verificado contra la local: 20 tarjetas, 14 con
+foto de Cloudinary, 6 con placeholder; paridad intacta (fixtures sin media ↔
+demo sin media).
+
+**Selección de demostración:** 14 productos reales en `seleccion.json` que
+ejercitan todos los caminos (Talla Woo con precio por variación, opciones
+Shopify, color con foto por variante, sin opciones, las 3 categorías, override
+de precio, tope de 8 imágenes). Es de demostración: la curaduría real la hace
+la clienta sobre `revision.html`.
+
+Verificado: `npx tsc --noEmit`, `npm run lint`, `npm run build` y las 44
+pruebas en verde (paridad contra Neon incluida — el demo de Neon quedó
+intacto). Nota operativa: una local con importados diverge de los fixtures a
+propósito; `npx prisma db seed` la devuelve al estado demo.
+
+---
+
+### Sesión anterior — 28 y 29 de julio de 2026 — Infraestructura en la nube
 
 **Objetivo: mover la base de datos a la nube.** La sesión local no está
 disponible 24/7 y la arquitectura tiene que poder trabajar sin ella.
@@ -210,12 +288,22 @@ Necesita autenticación (`better-auth`), CRUD de productos con el sistema de opc
 ajuste de stock en dos toques escribiendo siempre al libro de inventario. La clienta lo va
 a usar de pie en una bodega, con una mano.
 
-### Bloque E — Fotografía y Cloudinary
+### Bloque E — Fotografía y Cloudinary 🔄 desbloqueado a medias
 
-Bloqueado por la clienta, no por el código. Hoy todo renderiza
-`ProductImagePlaceholder` y `ProductMedia` está vacío. Cuando lleguen las fotos: sesión
-sobre fondo arena `#F1E7D8` con luz cálida, 4:5, subida a Cloudinary, y el modelo ya
-soporta imagen y video con `posterUrl`.
+Cloudinary está **activo y cableado**: el pipeline de importación re-hospeda
+las fotos de proveedor con la transformación de la guía de marca (4:5 sobre
+arena) y la tienda las muestra en tarjeta y galería. Lo que sigue siendo de la
+clienta: fotografía **propia** (sesión sobre arena `#F1E7D8`, luz cálida) para
+lencería sin foto usable y para el video, que el modelo ya soporta con
+`posterUrl`. Los 6 productos demo siguen en placeholder a propósito.
+
+### Bloque H — Importación de proveedores ✅ pipeline listo
+
+`scripts/import/` + `docs/IMPORT-PROVEEDORES.md`. Staging completo de los dos
+proveedores (1.275 productos), curaduría visual (`import:revision`), promote
+idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
+clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
+**margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
 
 ### Bloque F — Pagos
 
@@ -234,7 +322,7 @@ Dónde estamos:
 | Repositorio | ✅ GitHub |
 | Hosting | ✅ **Vercel** — `secretxoxo-shop`, importado desde el repo, con variables cargadas y leyendo de Neon |
 | CI | ✅ `.github/workflows/ci.yml` — lint, migraciones, seed, suite completa y build contra un Postgres real en cada push y PR a `main` |
-| Imágenes | ⬜ Cloudinary, decidido y sin implementar. Bloqueado por el Bloque E |
+| Imágenes | ✅ **Cloudinary** (`cs2uzjap`) — activo, verificado con subidas reales; el pipeline de importación re-hospeda fotos de proveedor con la transformación de marca |
 | Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2 |
 | Autenticación admin | ⬜ better-auth. Bloque D |
 
@@ -257,7 +345,9 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Playwright instalado sin pruebas | `@playwright/test` está en `package.json` y no hay `playwright.config.ts` ni un solo test e2e. O se escribe el flujo de compra, o se saca la dependencia |
 | El checkout no persiste | Ver Bloque C. Mientras tanto, ningún pedido hecho en la preview existe |
 | Admin sin construir | Ver Bloque D |
-| Sin fotos reales | Ver Bloque E. Etiquetar la preview para la clienta: las imágenes son placeholders |
+| Fotos propias pendientes | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E |
+| Descripciones sin pasada editorial | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho |
+| Curaduría y margen: decisión de negocio | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6 |
 | `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente |
 | Lighthouse sin medir | El criterio de éxito del spec (≥ 90 móvil) no se ha verificado; medirlo con imágenes reales, no con placeholders |
 | Descriptor de pago sin acordar | `SECRETO BTQ` es la propuesta del handoff; hay que confirmarla con la pasarela en el onboarding |
@@ -269,10 +359,13 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 Estas bloquean decisiones técnicas, no son de diseño. La lista completa está en el spec
 §11; estas son las que bloquean el trabajo inmediato:
 
-1. **Fotografía de producto** — es lo que más bloquea hoy. ¿Hay imágenes limpias de los
-   proveedores, o hay que hacer la sesión?
-2. **Catálogo completo** — cuántos productos y variantes al lanzar. Decide si hace falta
-   importación masiva en v1.
+1. **Curaduría del catálogo** — sentarse con `data/import/revision.html`
+   (generarla con `npm run import:revision`) y marcar qué vende de los 1.275
+   productos de los proveedores. El permiso de los proveedores ya está resuelto;
+   las fotos ya fluyen solas.
+2. **Margen por categoría** — los defaults (+50 % DistriSex, +0 % Climax) son
+   de trabajo. Con su número real, `pricing.marginPct` en
+   `scripts/import/seleccion.json` y listo.
 3. **Porcentaje de no-entrega en contra entrega** — decide la política de reservas del
    Bloque C. Ella sabe el número.
 4. **Pasarela** — ¿ya se habló con PayU? La categoría se declara honestamente en el

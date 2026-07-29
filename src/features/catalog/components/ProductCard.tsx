@@ -31,10 +31,17 @@ export function ProductCard({
   const body = (
     <>
       <div className={cn("relative", out && "opacity-60")}>
-        <ProductImagePlaceholder
-          name={product.name}
-          className="rounded-none"
-        />
+        {product.image ? (
+          // eslint-disable-next-line @next/next/no-img-element -- Cloudinary delivers pre-sized assets
+          <img
+            src={product.image.url}
+            alt={product.image.alt}
+            loading="lazy"
+            className="aspect-[4/5] w-full bg-arena object-cover"
+          />
+        ) : (
+          <ProductImagePlaceholder name={product.name} className="rounded-none" />
+        )}
         {out ? (
           <Badge className="absolute top-3 left-3">Agotado</Badge>
         ) : product.discountPercent ? (
