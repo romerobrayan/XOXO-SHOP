@@ -27,6 +27,19 @@ async function main() {
     );
   }
 
+  // Refuse to wipe a database that holds real orders. This is not an FK
+  // problem — it is worse: deleting variants SetNulls OrderItem.variantId and
+  // the movement wipe below erases the inventory ledger those orders wrote,
+  // which is the audit trail (CLAUDE.md rule 3). Silent corruption, no error.
+  const orderCount = await db.order.count();
+  if (orderCount > 0 && process.env.SEED_ALLOW_ORDER_WIPE !== "1") {
+    throw new Error(
+      `Refusing to seed: this database holds ${orderCount} order(s). ` +
+        "Seeding wipes the catalog and the inventory ledger those orders reference. " +
+        "If you are certain this is a disposable database, re-run with SEED_ALLOW_ORDER_WIPE=1.",
+    );
+  }
+
   // Wipe in dependency order — seed is only ever run against dev databases.
   await db.inventoryMovement.deleteMany();
   await db.variantOptionValue.deleteMany();
