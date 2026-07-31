@@ -60,7 +60,9 @@ export default async function CatalogPage({
 
   return (
     <div className="mx-auto w-full max-w-content px-4 py-8 md:px-6">
-      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Catálogo" }]} />
+      <Breadcrumb
+        items={[{ label: "Inicio", href: "/" }, { label: "Catálogo" }]}
+      />
 
       <div className="mt-4 flex flex-wrap items-baseline justify-between gap-4">
         <div>
@@ -103,7 +105,7 @@ export default async function CatalogPage({
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 lg:gap-6">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:gap-6">
               {sorted.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}

@@ -1,3 +1,4 @@
+import { Mail } from "lucide-react";
 import Link from "next/link";
 
 import { ProductImagePlaceholder } from "@/components/commerce/ProductImagePlaceholder";
@@ -6,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { CategoryTile } from "@/features/catalog/components/CategoryTile";
 import { HomeShowcase } from "@/features/catalog/components/HomeShowcase";
 import { getCategories, getProducts } from "@/features/catalog/queries";
+import { HeroShowcase } from "@/features/home/components/HeroShowcase";
 import { NewsletterForm } from "@/features/home/components/NewsletterForm";
+import { heroSlides } from "@/features/home/heroSlides";
 
 // Home per the handoff: héroe con el slogan, categorías con el divisor de
 // marca, "Top ventas" con modal de producto, pilares, asesoría/newsletter.
@@ -29,23 +32,27 @@ export default async function HomePage() {
     .filter((p) => p.availability.state !== "out")
     .slice(0, 4);
 
+  // One real product photo per family for the hero escaparate; [] while no
+  // photography exists (fixtures / pre-import) keeps the approved placeholder.
+  const slides = heroSlides(products, categories);
+
   return (
     <div>
       {/* Héroe */}
       <section className="border-b border-linea bg-[linear-gradient(170deg,var(--color-crema)_0%,var(--color-arena)_100%)]">
         <div className="mx-auto grid w-full max-w-content items-center gap-10 px-4 py-14 md:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:py-24">
           <div>
-            <p className="kicker">Boutique Erótica · antes XOXO</p>
-            <h1 className="mt-4 text-[clamp(40px,7vw,64px)] leading-[1.12]">
+            <p className="kicker hero-enter">Boutique Erótica · antes XOXO</p>
+            <h1 className="hero-enter mt-4 text-[clamp(40px,7vw,64px)] leading-[1.12] [animation-delay:60ms]">
               El placer es tuyo.
               <br />
               El secreto, nuestro.
             </h1>
-            <p className="mt-4 max-w-[46ch] text-lg font-light">
+            <p className="hero-enter mt-4 max-w-[46ch] text-lg font-light [animation-delay:120ms]">
               Productos curados para tu intimidad, con asesoría honesta y
               empaque neutro del clic a la puerta.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <div className="hero-enter mt-8 flex flex-wrap items-center gap-4 [animation-delay:180ms]">
               <Button asChild>
                 <Link href="#catalogo">Ver colección</Link>
               </Button>
@@ -54,10 +61,17 @@ export default async function HomePage() {
               </WhatsAppCta>
             </div>
           </div>
-          <ProductImagePlaceholder
-            name="Foto editorial · lencería"
-            className="hidden w-full max-w-[368px] justify-self-end lg:flex"
-          />
+          {slides.length > 0 ? (
+            <HeroShowcase
+              slides={slides}
+              className="hero-enter mx-auto [animation-delay:240ms] lg:mx-0 lg:justify-self-end"
+            />
+          ) : (
+            <ProductImagePlaceholder
+              name="Foto editorial · lencería"
+              className="hidden w-full max-w-[368px] justify-self-end lg:flex"
+            />
+          )}
         </div>
       </section>
 
@@ -124,7 +138,12 @@ export default async function HomePage() {
         id="asesoria"
         className="mx-auto w-full max-w-[720px] px-4 py-16 text-center md:px-6"
       >
-        <h2 className="text-2xl">¿No sabes por dónde empezar?</h2>
+        <Mail
+          aria-hidden="true"
+          strokeWidth={1.5}
+          className="mx-auto size-5 text-vino"
+        />
+        <h2 className="mt-4 text-2xl">¿No sabes por dónde empezar?</h2>
         <p className="mx-auto mt-3 mb-8 font-light">
           Déjanos tu correo y recibe la guía para principiantes, o escríbenos
           directo: la asesoría es privada y sin compromiso.

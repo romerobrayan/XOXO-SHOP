@@ -40,7 +40,10 @@ export function ProductCard({
             className="aspect-[4/5] w-full bg-arena object-cover"
           />
         ) : (
-          <ProductImagePlaceholder name={product.name} className="rounded-none" />
+          <ProductImagePlaceholder
+            name={product.name}
+            className="rounded-none"
+          />
         )}
         {out ? (
           <Badge className="absolute top-3 left-3">Agotado</Badge>
@@ -50,20 +53,28 @@ export function ProductCard({
           </Badge>
         ) : null}
       </div>
-      <div className="p-4">
+      {/* flex-1 + mt-auto keep every card in a row the same height: the name
+          reserves exactly two lines and the price row sits on the bottom
+          edge regardless of how short the name is. */}
+      <div className="flex flex-1 flex-col p-4">
         {/* One line always: long category·brand pairs must not break the
             card rhythm down the grid. */}
         <p className="kicker truncate">{cardKicker(product)}</p>
-        <h3 className="mt-1.5 font-display text-lg font-normal text-tinta">
+        <h3 className="mt-1.5 line-clamp-2 min-h-[3.3em] font-display text-lg font-normal text-tinta">
           {product.name}
         </h3>
-        <div className="mt-2.5 flex items-baseline justify-between gap-2">
+        {/* Narrow cards can't fit "Desde $16.500 · Envío discreto" on one
+            line, and a wrapped price made rows uneven — so mobile stacks the
+            footer (always two real lines, always the same height) and md+
+            returns to the handoff's single price/note row. */}
+        <div className="mt-auto flex flex-col gap-1 pt-2.5 md:flex-row md:items-baseline md:justify-between md:gap-2">
           <Price
+            className="min-w-0 flex-nowrap"
             cents={product.priceFromCents}
             compareAtCents={product.compareAtCents}
             from={product.priceVaries}
           />
-          <span className="text-xs text-tenue">
+          <span className="shrink-0 text-xs whitespace-nowrap text-tenue">
             {out ? "Agotado" : "Envío discreto"}
           </span>
         </div>
@@ -72,7 +83,7 @@ export function ProductCard({
   );
 
   const cardClass =
-    "block w-full overflow-hidden rounded-md border border-linea bg-crema text-left transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-card";
+    "flex h-full w-full flex-col overflow-hidden rounded-md border border-linea bg-crema text-left transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-card";
 
   if (onSelect) {
     return (

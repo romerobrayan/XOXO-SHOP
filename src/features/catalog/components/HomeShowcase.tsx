@@ -61,10 +61,19 @@ export function HomeShowcase({ products }: { products: ProductCardDTO[] }) {
         <DialogContent className="max-w-[760px] gap-0 overflow-hidden p-0 sm:grid sm:grid-cols-2">
           {active && (
             <>
-              <ProductImagePlaceholder
-                name={active.name}
-                className="hidden aspect-auto h-full rounded-none sm:flex"
-              />
+              {active.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Cloudinary delivers pre-sized assets
+                <img
+                  src={active.image.url}
+                  alt={active.image.alt}
+                  className="hidden h-full w-full bg-arena object-cover sm:block"
+                />
+              ) : (
+                <ProductImagePlaceholder
+                  name={active.name}
+                  className="hidden aspect-auto h-full rounded-none sm:flex"
+                />
+              )}
               <div className="flex flex-col gap-4 p-6 md:p-8">
                 <p className="kicker">{cardKicker(active)}</p>
                 <DialogTitle className="text-2xl">{active.name}</DialogTitle>

@@ -4,21 +4,21 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 29 de julio de 2026 — sesión "Importación del catálogo de
-proveedores": pipeline staging → curaduría → promote, Cloudinary activo, y las
-tarjetas del catálogo mostrando fotografía real.
+**Última actualización:** 31 de julio de 2026 — sesión "Pulido del storefront":
+las fotos llenan las tarjetas, alturas uniformes, iconos Lucide, galería con
+flechas, y el héroe vende con un escaparate animado por familia.
 
 ---
 
 ## 1. Dónde estamos
 
-| Fase | Estado |
-| --- | --- |
-| **0 — Diseño** | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta |
-| **1 — Catálogo** | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
-| **2 — Carrito y checkout** | No empezada. El checkout actual es solo UI: no escribe `Order` ni reserva stock |
-| **3 — Pagos** | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio |
-| **4 — Admin y lanzamiento** | No empezada |
+| Fase                        | Estado                                                                                                                                                                                                |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0 — Diseño**              | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta                                                                 |
+| **1 — Catálogo**            | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
+| **2 — Carrito y checkout**  | No empezada. El checkout actual es solo UI: no escribe `Order` ni reserva stock                                                                                                                       |
+| **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
+| **4 — Admin y lanzamiento** | No empezada                                                                                                                                                                                           |
 
 Lo que ya funciona de punta a punta: navegar el catálogo, filtrar por categoría y marca,
 ordenar, abrir un producto, elegir opciones con estados de agotado correctos, agregar a la
@@ -61,6 +61,68 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: pulir el storefront ahora que hay fotografía real.** Al ver el
+catálogo importado en producción aparecieron cuatro fallos visuales; todos
+tenían causa raíz identificable.
+
+**Las fotos ahora llenan la tarjeta.** No era CSS: la URL guardada trae la
+transformación `c_pad` (4:5 con franjas arena), así que una foto de proveedor
+sobre blanco flotaba como rectángulo dentro del marco. Las tarjetas hacen
+cirugía de URL en render (`src/lib/cloudinary-url.ts`: `c_pad…` → `c_fill,
+ar_4:5,g_auto`) en la frontera del DTO — las URLs guardadas no se tocan (la
+idempotencia del import se apoya en ellas) y la galería del PDP conserva a
+propósito la pieza completa con su campo arena. El modal de la home también
+dejó de mostrar siempre el placeholder.
+
+**Tarjetas de altura uniforme.** La tarjeta llena su celda (`h-full` flex),
+el nombre reserva exactamente dos líneas (`line-clamp-2` + `min-h` en em) y la
+fila de precio queda clavada al borde inferior. El PLP ganó el paso `md:` que
+faltaba (3 columnas en tablet; el sidebar solo existe en `lg`).
+
+**Iconos, según la guía y con dos desviaciones registradas.** La guía permite
+Lucide outline stroke 1.5 "donde se necesiten (bolsa, búsqueda, flechas)":
+`ShoppingBag` en "Bolsa", `ChevronLeft/Right` en la galería, `Mail` decorativo
+en la asesoría (sin mailto — **no existe correo comercial todavía**; cuando lo
+haya, agregarlo a `src/lib/contact.ts` y al footer es una línea). Desviaciones:
+(1) lucide 1.x no trae glifos de marca y la guía veta los rellenos → Instagram/
+WhatsApp usan stand-ins semánticos (`Camera`/`MessageCircle`) siempre junto a
+su texto; (2) en el footer vino los iconos heredan marfil como el texto (la
+regla cuerpo/vino asume superficie clara). Convención definida: `size-4`
+inline, `size-5` en controles de ≥44px. El pill de WhatsApp sigue sin icono
+(solo su `→`, como manda el handoff).
+
+**La galería del PDP tiene señales.** Antes era un scroll-snap con la barra
+oculta: en desktop nada indicaba que había más fotos. Ahora: 0 fotos →
+placeholder servidor; 1 foto → sin JS de cliente; 2+ → reel con flechas
+(deshabilitadas en los extremos) y puntos-botón bajo la imagen, swipe intacto.
+
+**El héroe vende: escaparate con crossfade.** Layout, copy, gradiente y CTAs
+aprobados quedaron verbatim; el marco 4:5 de la derecha (que en móvil ni
+existía) ahora rota una foto real por familia — lencería, cosmética,
+juguetería — con crossfade solo de opacidad (650ms cada 5s), pausa en hover y
+foco, puntos para control directo, un solo link al producto visible
+("productos a un tap", la intención del spec), y visible en móvil. Sin fotos
+(fixtures / DB-less) vuelve el placeholder aprobado exacto. Entrada única
+escalonada del texto (opacity + 8px, 300ms, stagger 60ms).
+
+**Enmienda de movimiento — pendiente del visto bueno de la clienta.** El
+handoff solo sanciona hovers de 150–200ms y calla sobre entradas y carruseles.
+El crossfade (650ms) y la entrada (300ms) son una extensión deliberada y
+acotada, declarada en `globals.css` (`--motion-crossfade`, `--motion-entrance`,
+bloque comentado "MOTION AMENDMENT") — ease-out, solo opacity/transform, sin
+bounces. El bloque global de `prefers-reduced-motion` ahora también anula
+`animation-delay` (el fill `both` + stagger dejaba contenido invisible para
+esos usuarios) y el intervalo del escaparate ni arranca bajo reduced motion.
+
+Verificado: `tsc`, lint, 46 pruebas + 6 de paridad saltadas sin base (las 8
+nuevas de `cloudinary-url` y `heroSlides` incluidas), build con y sin
+`DATABASE_URL`, y revisión en navegador contra la local (1280/768/375,
+reduced motion, DB-less). Deuda nueva anotada en §5.
+
+---
+
+### Sesión anterior — 29 de julio de 2026 — Importación de proveedores
 
 **Objetivo: construir el catálogo real importando desde los dos proveedores de
 la clienta.** Ella no tiene catálogo propio — todo sale de
@@ -316,15 +378,15 @@ idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider
 El objetivo es que nada dependa de que una máquina en particular esté prendida.
 Dónde estamos:
 
-| Pieza | Estado |
-| --- | --- |
-| Base de datos | ✅ **Neon**, gestionada, verificada de punta a punta |
-| Repositorio | ✅ GitHub |
-| Hosting | ✅ **Vercel** — `secretxoxo-shop`, importado desde el repo, con variables cargadas y leyendo de Neon |
-| CI | ✅ `.github/workflows/ci.yml` — lint, migraciones, seed, suite completa y build contra un Postgres real en cada push y PR a `main` |
-| Imágenes | ✅ **Cloudinary** (`cs2uzjap`) — activo, verificado con subidas reales; el pipeline de importación re-hospeda fotos de proveedor con la transformación de marca |
-| Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2 |
-| Autenticación admin | ⬜ better-auth. Bloque D |
+| Pieza                | Estado                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base de datos        | ✅ **Neon**, gestionada, verificada de punta a punta                                                                                                            |
+| Repositorio          | ✅ GitHub                                                                                                                                                       |
+| Hosting              | ✅ **Vercel** — `secretxoxo-shop`, importado desde el repo, con variables cargadas y leyendo de Neon                                                            |
+| CI                   | ✅ `.github/workflows/ci.yml` — lint, migraciones, seed, suite completa y build contra un Postgres real en cada push y PR a `main`                              |
+| Imágenes             | ✅ **Cloudinary** (`cs2uzjap`) — activo, verificado con subidas reales; el pipeline de importación re-hospeda fotos de proveedor con la transformación de marca |
+| Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2                                                                                                              |
+| Autenticación admin  | ⬜ better-auth. Bloque D                                                                                                                                        |
 
 **Producción:** https://secretxoxo-shop.vercel.app — cada push a `main` despliega
 solo y cada PR recibe su URL de preview. Comprobado que lee de Neon contando
@@ -339,18 +401,22 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 
 ## 5. Deuda abierta
 
-| Deuda | Nota |
-| --- | --- |
-| `sslmode=require` sin decidir | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana |
-| Playwright instalado sin pruebas | `@playwright/test` está en `package.json` y no hay `playwright.config.ts` ni un solo test e2e. O se escribe el flujo de compra, o se saca la dependencia |
-| El checkout no persiste | Ver Bloque C. Mientras tanto, ningún pedido hecho en la preview existe |
-| Admin sin construir | Ver Bloque D |
-| Fotos propias pendientes | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E |
-| Descripciones sin pasada editorial | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho |
-| Curaduría y margen: decisión de negocio | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6 |
-| `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente |
-| Lighthouse sin medir | El criterio de éxito del spec (≥ 90 móvil) no se ha verificado; medirlo con imágenes reales, no con placeholders |
-| Descriptor de pago sin acordar | `SECRETO BTQ` es la propuesta del handoff; hay que confirmarla con la pasarela en el onboarding |
+| Deuda                                        | Nota                                                                                                                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sslmode=require` sin decidir                | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana  |
+| Playwright instalado sin pruebas             | `@playwright/test` está en `package.json` y no hay `playwright.config.ts` ni un solo test e2e. O se escribe el flujo de compra, o se saca la dependencia                                                                                  |
+| El checkout no persiste                      | Ver Bloque C. Mientras tanto, ningún pedido hecho en la preview existe                                                                                                                                                                    |
+| Admin sin construir                          | Ver Bloque D                                                                                                                                                                                                                              |
+| Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
+| Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
+| Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |
+| Enmienda de movimiento sin aprobar           | El escaparate del héroe y la entrada escalonada extienden el spec de movimiento del handoff (que solo define hovers de 150–200 ms). Valores en `globals.css` como `--motion-*`; se aprueban con la Fase 0 o se apagan quitando dos clases |
+| Links muertos del footer                     | "Envíos y garantía" y "Privacidad" siguen en `href="#"` — las páginas de contenido no existen. Escribirlas o quitar los links antes del lanzamiento                                                                                       |
+| `mediaForSelection` sin cablear              | Fotos por color elegido: implementado y testeado, pero conectar la galería al picker exige reestructurar el PDP en isla cliente (hoy `Gallery` y `PurchasePanel` son hermanos server). Evaluado y diferido                                |
+| Correo comercial inexistente                 | No hay dirección de email del negocio en ningún punto de contacto; el icono Mail de la asesoría es decorativo. Cuando exista: `src/lib/contact.ts` + footer                                                                               |
+| `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente                                                                                                                                                               |
+| Lighthouse sin medir                         | El criterio de éxito del spec (≥ 90 móvil) no se ha verificado; medirlo con imágenes reales, no con placeholders                                                                                                                          |
+| Descriptor de pago sin acordar               | `SECRETO BTQ` es la propuesta del handoff; hay que confirmarla con la pasarela en el onboarding                                                                                                                                           |
 
 ---
 
