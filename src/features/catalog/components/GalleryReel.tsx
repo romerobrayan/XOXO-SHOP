@@ -77,7 +77,11 @@ export function GalleryReel({
           aria-label="Imagen anterior"
           className="flex size-11 items-center justify-center text-cuerpo transition-colors hover:text-vino disabled:pointer-events-none disabled:opacity-45"
         >
-          <ChevronLeft aria-hidden="true" strokeWidth={1.5} className="size-5" />
+          <ChevronLeft
+            aria-hidden="true"
+            strokeWidth={1.5}
+            className="size-5"
+          />
         </button>
         <div className="flex items-center">
           {media.map((item, i) => (

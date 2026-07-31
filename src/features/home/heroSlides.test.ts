@@ -37,16 +37,18 @@ describe("heroSlides", () => {
   it("picks the first photographed product per category, in category order", () => {
     const slides = heroSlides(
       [
-        product({ id: "b", slug: "gel", name: "Gel", categorySlug: "cosmetica-intima" }),
+        product({
+          id: "b",
+          slug: "gel",
+          name: "Gel",
+          categorySlug: "cosmetica-intima",
+        }),
         product({ id: "a", slug: "body", name: "Body" }),
         product({ id: "c", slug: "body-2", name: "Body 2" }),
       ],
       categories,
     );
-    expect(slides.map((s) => s.href)).toEqual([
-      "/tienda/body",
-      "/tienda/gel",
-    ]);
+    expect(slides.map((s) => s.href)).toEqual(["/tienda/body", "/tienda/gel"]);
     expect(slides[0].categoryName).toBe("Lencería");
   });
 

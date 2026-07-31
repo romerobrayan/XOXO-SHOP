@@ -60,7 +60,9 @@ export default async function CatalogPage({
 
   return (
     <div className="mx-auto w-full max-w-content px-4 py-8 md:px-6">
-      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Catálogo" }]} />
+      <Breadcrumb
+        items={[{ label: "Inicio", href: "/" }, { label: "Catálogo" }]}
+      />
 
       <div className="mt-4 flex flex-wrap items-baseline justify-between gap-4">
         <div>

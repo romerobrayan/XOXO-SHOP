@@ -81,7 +81,9 @@ export function toProductCard(p: ProductCardPayload): ProductCardDTO {
   const totalAvailable = p.variants.reduce((sum, v) => sum + availableOf(v), 0);
   const prices = p.variants.map((v) => v.priceCents);
   const priceFromCents = prices.length ? Math.min(...prices) : p.minPriceCents;
-  const priceVaries = prices.length ? Math.max(...prices) !== priceFromCents : false;
+  const priceVaries = prices.length
+    ? Math.max(...prices) !== priceFromCents
+    : false;
 
   // The promo treatment on a card follows the variant whose price the card
   // shows (the cheapest one).

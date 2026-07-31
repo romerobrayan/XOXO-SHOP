@@ -138,7 +138,11 @@ export default async function HomePage() {
         id="asesoria"
         className="mx-auto w-full max-w-[720px] px-4 py-16 text-center md:px-6"
       >
-        <Mail aria-hidden="true" strokeWidth={1.5} className="mx-auto size-5 text-vino" />
+        <Mail
+          aria-hidden="true"
+          strokeWidth={1.5}
+          className="mx-auto size-5 text-vino"
+        />
         <h2 className="mt-4 text-2xl">¿No sabes por dónde empezar?</h2>
         <p className="mx-auto mt-3 mb-8 font-light">
           Déjanos tu correo y recibe la guía para principiantes, o escríbenos
