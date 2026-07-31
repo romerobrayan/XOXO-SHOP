@@ -40,7 +40,10 @@ export function ProductCard({
             className="aspect-[4/5] w-full bg-arena object-cover"
           />
         ) : (
-          <ProductImagePlaceholder name={product.name} className="rounded-none" />
+          <ProductImagePlaceholder
+            name={product.name}
+            className="rounded-none"
+          />
         )}
         {out ? (
           <Badge className="absolute top-3 left-3">Agotado</Badge>
@@ -60,9 +63,13 @@ export function ProductCard({
         <h3 className="mt-1.5 line-clamp-2 min-h-[3.3em] font-display text-lg font-normal text-tinta">
           {product.name}
         </h3>
-        <div className="mt-auto flex items-baseline justify-between gap-2 pt-2.5">
+        {/* Narrow cards can't fit "Desde $16.500 · Envío discreto" on one
+            line, and a wrapped price made rows uneven — so mobile stacks the
+            footer (always two real lines, always the same height) and md+
+            returns to the handoff's single price/note row. */}
+        <div className="mt-auto flex flex-col gap-1 pt-2.5 md:flex-row md:items-baseline md:justify-between md:gap-2">
           <Price
-            className="min-w-0"
+            className="min-w-0 flex-nowrap"
             cents={product.priceFromCents}
             compareAtCents={product.compareAtCents}
             from={product.priceVaries}
