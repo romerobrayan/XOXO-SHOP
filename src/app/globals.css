@@ -154,11 +154,34 @@ a {
   display: none;
 }
 
+/* ── MOTION AMENDMENT — pending client sign-off ────────────────────────────
+   The handoff sanctions only 150–200ms ease transitions (hover/press) and is
+   silent on entrances and carousels. These two named durations are a
+   deliberate, scoped extension for the hero: a one-time entrance reveal and
+   the escaparate crossfade. Ease-out only, opacity/transform only, no
+   bounces. Recorded in docs/ESTADO-Y-SIGUIENTE-SESION.md. */
+:root {
+  --motion-crossfade: 650ms; /* hero escaparate opacity crossfade */
+  --motion-entrance: 300ms; /* one-time hero reveal */
+}
+@keyframes hero-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.hero-enter {
+  animation: hero-enter var(--motion-entrance) ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    /* Delays too: `both` fill + a stagger delay would otherwise leave the
+       hero invisible for the length of the delay. */
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
