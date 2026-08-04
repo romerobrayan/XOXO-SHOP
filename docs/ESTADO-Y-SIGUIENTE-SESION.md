@@ -367,11 +367,39 @@ idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
 clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
 **margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
 
-### Bloque F — Pagos
+### Bloque F — Pagos 🔄 pasarela comparada, decisión propuesta
 
 Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
-y el mock ya existen; el adaptador de PayU y el webhook con verificación de firma e
-idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md`.
+y el mock ya existen; el adaptador y el webhook con verificación de firma e idempotencia
+entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md` y, para la
+comparación completa, **`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
+
+**Lo que cambió (agosto 2026):** se compararon PayU y Wompi en precio, liquidación,
+mezcla de medios de pago y costo de integración. Resumen:
+
+- **El precio de tarjeta es un empate.** Las dos curvas se cruzan en exactamente
+  COP 100.000 — justo en medio del rango de esta tienda ($45.000–$120.000). A 100
+  pedidos de $80.000 al mes, elegir una u otra vale ~COP 7.000 mensuales.
+- **Lo que sí vale plata es la mezcla de medios.** Nequi (1,79 %) y PSE son más
+  baratos y más discretos que la tarjeta; una mezcla realista sale ~18 % más barata
+  que todo-tarjeta. Nequi solo existe del lado de Wompi.
+- **Wompi gana liquidación** (día hábil siguiente, sin costo de retiro) contra PayU
+  (3 días hábiles, 3 retiros gratis al mes y luego $6.500 + IVA), y gana costo de
+  integración (API REST moderna, firma SHA-256, webhook HMAC que calza tal cual con
+  el puerto que ya existe).
+- **PayU gana la única carta que importaba de verdad:** publica una tabla por rubro
+  donde **"Sex shop y artículos eróticos" figura como *Restringido* en Colombia** —
+  o sea, permitido con autorización expresa. Wompi no publica nada equivalente; su
+  reglamento habla en genérico y la contraparte es Bancolombia.
+- **Propuesta:** abrir las dos conversaciones la misma semana declarando la
+  categoría por escrito, con **Wompi primero y PayU como respaldo documentado**, y
+  escribir el adaptador de Wompi contra el sandbox antes de que haya cuenta, para
+  sacar la pasarela de la ruta crítica.
+
+**Bloqueantes de onboarding que no son código** (detalle en el ADR 002): RUT, cédula,
+comprobante de domicilio, extractos; cuenta Bancolombia o Nequi a nombre de quien
+registra —si es persona natural, con más de 30 días y **el primer desembolso llega a
+los 30 días de la primera venta**—; y las **páginas legales publicadas y accesibles**.
 
 ### Bloque G — Arquitectura en la nube 🔄 en curso
 
@@ -411,7 +439,7 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
 | Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |
 | Enmienda de movimiento sin aprobar           | El escaparate del héroe y la entrada escalonada extienden el spec de movimiento del handoff (que solo define hovers de 150–200 ms). Valores en `globals.css` como `--motion-*`; se aprueban con la Fase 0 o se apagan quitando dos clases |
-| Links muertos del footer                     | "Envíos y garantía" y "Privacidad" siguen en `href="#"` — las páginas de contenido no existen. Escribirlas o quitar los links antes del lanzamiento                                                                                       |
+| **Páginas legales inexistentes** ⚠️           | Subió de prioridad: no es deuda cosmética, es **bloqueante del onboarding de la pasarela** — el análisis de riesgo revisa la tienda en vivo. Faltan tratamiento de datos (Ley 1581/2012), términos y condiciones, envíos y devoluciones (ojo: el retracto de 5 días del Estatuto del Consumidor generalmente **excluye** productos de higiene personal e íntimos — decirlo con precisión). "Envíos y garantía" y "Privacidad" siguen en `href="#"`. Ver ADR 002 |
 | `mediaForSelection` sin cablear              | Fotos por color elegido: implementado y testeado, pero conectar la galería al picker exige reestructurar el PDP en isla cliente (hoy `Gallery` y `PurchasePanel` son hermanos server). Evaluado y diferido                                |
 | Correo comercial inexistente                 | No hay dirección de email del negocio en ningún punto de contacto; el icono Mail de la asesoría es decorativo. Cuando exista: `src/lib/contact.ts` + footer                                                                               |
 | `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente                                                                                                                                                               |
@@ -434,8 +462,14 @@ Estas bloquean decisiones técnicas, no son de diseño. La lista completa está 
    `scripts/import/seleccion.json` y listo.
 3. **Porcentaje de no-entrega en contra entrega** — decide la política de reservas del
    Bloque C. Ella sabe el número.
-4. **Pasarela** — ¿ya se habló con PayU? La categoría se declara honestamente en el
-   onboarding; esto es lo más riesgoso del proyecto y es calendario, no código.
+4. **Pasarela** — la comparación ya está hecha (`docs/decisions/002-pasarela-wompi-vs-payu.md`):
+   la propuesta es **Wompi primero, PayU de respaldo**, abriendo las dos conversaciones la
+   misma semana y declarando la categoría por escrito. Lo que hace falta de su lado:
+   (a) ¿la tienda se registra como persona natural o jurídica? —si es natural, el primer
+   desembolso de Wompi llega a los 30 días de la primera venta—; (b) ¿tiene cuenta
+   Bancolombia o Nequi a su nombre, con más de 30 días?; (c) RUT, cédula, comprobante de
+   domicilio y extractos de los últimos 3 meses. Esto es lo más riesgoso del proyecto y es
+   calendario, no código.
 5. **Envío** — tarifa plana, por ciudad o gratis desde un monto. El handoff muestra
    `$12.000` fijo en el resumen del checkout, que es un supuesto de diseño, no un dato.
 6. **Empaque discreto, en concreto** — qué remitente aparece en la guía. Es una promesa que
