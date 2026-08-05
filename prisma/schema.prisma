@@ -273,6 +273,11 @@ model Order {
   // Customer-facing, so it carries the new brand, not the repository's name.
   orderNumber String @unique
 
+  // One UUID per checkout attempt, generated client-side. A double-tap on
+  // "Confirmar pedido" or a retried request finds the existing order via
+  // the unique index instead of creating (and reserving stock for) a second.
+  idempotencyKey String? @unique
+
   // Nullable: guest checkout is mandatory in this category.
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)

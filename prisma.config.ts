@@ -7,6 +7,10 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
     url: process.env.DATABASE_URL,
+    // Only the CLI reads this, and only for commands that replay the
+    // migrations directory (migrate dev, migrate diff --from-migrations).
+    // Point it at a throwaway database — never at Neon.
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
   migrations: {
     path: "prisma/migrations",
