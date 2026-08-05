@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useAction } from "next-safe-action/hooks";
 import { useEffect, useState } from "react";
 
 import { WhatsAppCta } from "@/components/commerce/WhatsAppCta";
@@ -15,19 +16,25 @@ import {
   useCart,
   type CartItem,
 } from "@/features/cart/store";
+import { createOrder, type LineConflict } from "@/features/checkout/actions";
+import { DEPARTAMENTOS } from "@/features/checkout/schemas";
 import { formatCOP } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 // Checkout en 3 pasos per handoff §4 — Bolsa, Datos, Pago — con confirmación
-// en la misma vista (el stepper desaparece al confirmar). Fase 0: el pedido
-// no persiste todavía; al confirmar se congela un snapshot para el resumen y
-// la bolsa se vacía. Colombian invoicing fields (department, documentType,
-// documentId) join in Sprint 3 when real orders are created.
+// en la misma vista (el stepper desaparece al confirmar). Bloque C: confirmar
+// llama al Server Action createOrder, que re-lee precios de la base, escribe
+// Order + OrderItem con snapshots y reserva stock. La bolsa se vacía solo
+// cuando el servidor confirma.
 
 const PASOS = ["Bolsa", "Datos", "Pago"] as const;
 
-// Medellín primero: es la plaza de contra entrega.
-const CIUDADES = ["Medellín", "Bogotá", "Cali", "Barranquilla", "Otra ciudad"];
+const DOCUMENTOS = [
+  ["CC", "Cédula (CC)"],
+  ["CE", "Cédula de extranjería (CE)"],
+  ["NIT", "NIT"],
+  ["PP", "Pasaporte (PP)"],
+] as const;
 
 type Paso = 1 | 2 | 3;
 type MetodoPago = "contraentrega" | "online";
@@ -35,6 +42,10 @@ type MetodoPago = "contraentrega" | "online";
 type DatosEntrega = {
   nombre: string;
   celular: string;
+  email: string;
+  documentType: (typeof DOCUMENTOS)[number][0];
+  documentId: string;
+  department: (typeof DEPARTAMENTOS)[number];
   ciudad: string;
   direccion: string;
   notas: string;
@@ -151,37 +162,171 @@ function ItemCard({ item }: { item: CartItem }) {
   );
 }
 
+// Per-line stale-bag conflicts from the action, each with the one gesture
+// that resolves it: accept the new price, or drop the line.
+function ConflictPanel({
+  conflictos,
+  itemName,
+  onResolve,
+}: {
+  conflictos: LineConflict[];
+  itemName: (variantId: string) => string | null;
+  onResolve: (conflict: LineConflict) => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="mt-6 rounded-md border border-error bg-crema p-4"
+    >
+      <p className="text-sm font-medium text-error">
+        Tu bolsa cambió mientras comprabas:
+      </p>
+      <ul className="mt-3 grid gap-3">
+        {conflictos.map((c) => {
+          const name = c.productName ?? itemName(c.variantId) ?? "Un producto";
+          return (
+            <li
+              key={c.variantId}
+              className="flex flex-wrap items-center justify-between gap-2 text-sm"
+            >
+              <span>
+                {c.reason === "PRICE_CHANGED" &&
+                c.currentPriceCents !== undefined ? (
+                  <>
+                    {name} ahora cuesta{" "}
+                    <strong className="font-semibold">
+                      {formatCOP(c.currentPriceCents)}
+                    </strong>
+                  </>
+                ) : c.reason === "OUT_OF_STOCK" ? (
+                  `${name} se agotó`
+                ) : (
+                  `${name} ya no está disponible`
+                )}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onResolve(c)}
+              >
+                {c.reason === "PRICE_CHANGED"
+                  ? "Aceptar nuevo precio"
+                  : "Quitar de la bolsa"}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function CheckoutFlow() {
   const cartItems = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
+  const remove = useCart((s) => s.remove);
+  const reprice = useCart((s) => s.reprice);
 
   const [paso, setPaso] = useState<Paso>(1);
   const [datos, setDatos] = useState<DatosEntrega>({
     nombre: "",
     celular: "",
-    ciudad: CIUDADES[0],
+    email: "",
+    documentType: "CC",
+    documentId: "",
+    department: "Antioquia",
+    ciudad: "Medellín",
     direccion: "",
     notas: "",
   });
   const [metodo, setMetodo] = useState<MetodoPago>("contraentrega");
+  // One key per checkout attempt: if the request is retried, the server
+  // finds the order the first attempt created instead of creating another.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const [conflictos, setConflictos] = useState<LineConflict[] | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Frozen at confirmation so the summary survives clearing the bag.
-  const [confirmado, setConfirmado] = useState<CartItem[] | null>(null);
+  const [confirmado, setConfirmado] = useState<{
+    items: CartItem[];
+    orderNumber: string;
+  } | null>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [paso, confirmado]);
 
-  const items = confirmado ?? cartItems;
+  const accion = useAction(createOrder, {
+    onSuccess: ({ data }) => {
+      if (!data) return;
+      if (data.ok) {
+        setConfirmado({ items: cartItems, orderNumber: data.orderNumber });
+        clear();
+      } else if (data.code === "DEMO_MODE") {
+        setErrorMsg(
+          "Esta es la tienda de demostración: los pedidos todavía no se registran. Escríbenos por WhatsApp y coordinamos tu compra.",
+        );
+      } else {
+        setConflictos(data.conflicts);
+      }
+    },
+    onError: ({ error }) => {
+      setErrorMsg(
+        error.serverError ??
+          "No pudimos registrar tu pedido. Intenta de nuevo o escríbenos por WhatsApp.",
+      );
+    },
+  });
+  const enviando = accion.status === "executing";
+
+  const items = confirmado?.items ?? cartItems;
   const vacia = items.length === 0;
   const subtotal = subtotalCents(items);
   const total = subtotal + (vacia ? 0 : SHIPPING_CENTS);
 
   function confirmar() {
-    setConfirmado(cartItems);
-    clear();
+    setErrorMsg(null);
+    setConflictos(null);
+    if (metodo === "online" && datos.email.trim() === "") {
+      setErrorMsg("Para pagar en línea necesitamos tu correo.");
+      setPaso(2);
+      return;
+    }
+    accion.execute({
+      idempotencyKey,
+      items: cartItems.map((i) => ({
+        variantId: i.variantId,
+        qty: i.qty,
+        expectedPriceCents: i.priceCents,
+      })),
+      delivery: {
+        nombre: datos.nombre,
+        celular: datos.celular,
+        email: datos.email.trim() === "" ? undefined : datos.email,
+        documentType: datos.documentType,
+        documentId: datos.documentId,
+        department: datos.department,
+        ciudad: datos.ciudad,
+        direccion: datos.direccion,
+        notas: datos.notas === "" ? undefined : datos.notas,
+      },
+      paymentMethod: metodo === "contraentrega" ? "CASH_ON_DELIVERY" : "ONLINE",
+    });
   }
 
-  function set<K extends keyof DatosEntrega>(key: K, value: string) {
+  function resolverConflicto(c: LineConflict) {
+    if (c.reason === "PRICE_CHANGED" && c.currentPriceCents !== undefined) {
+      reprice(c.variantId, c.currentPriceCents);
+    } else {
+      remove(c.variantId);
+    }
+    setConflictos((prev) => {
+      const rest = prev?.filter((x) => x.variantId !== c.variantId) ?? [];
+      return rest.length > 0 ? rest : null;
+    });
+  }
+
+  function set<K extends keyof DatosEntrega>(key: K, value: DatosEntrega[K]) {
     setDatos((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -200,10 +345,14 @@ export function CheckoutFlow() {
                 ✓
               </div>
               <h1 className="mt-6 text-2xl">Pedido confirmado</h1>
-              <p className="mx-auto mt-3 max-w-[44ch] font-light">
-                Te escribimos por WhatsApp para coordinar la entrega. Recuerda:
-                caja neutra, remitente genérico —{" "}
-                <strong className="font-medium">tu secreto está a salvo</strong>
+              <p className="kicker mt-6">Tu pedido</p>
+              <p className="mt-1 font-display text-2xl text-vino">
+                {confirmado.orderNumber}
+              </p>
+              <p className="mx-auto mt-4 max-w-[44ch] font-light">
+                Guarda este código. Te escribimos por WhatsApp para coordinar
+                el pago y la entrega. Recuerda: caja neutra, remitente genérico
+                — <strong className="font-medium">tu secreto está a salvo</strong>
                 .
               </p>
               <Button variant="outline" asChild className="mt-6">
@@ -273,18 +422,82 @@ export function CheckoutFlow() {
                   </label>
                 </div>
                 <label>
-                  <span className={labelClass}>Ciudad</span>
-                  <Select
-                    value={datos.ciudad}
-                    onChange={(e) => set("ciudad", e.target.value)}
-                  >
-                    {CIUDADES.map((ciudad) => (
-                      <option key={ciudad} value={ciudad}>
-                        {ciudad}
-                      </option>
-                    ))}
-                  </Select>
+                  <span className={labelClass}>
+                    Correo{" "}
+                    <span className="font-light text-tenue">
+                      (opcional si pagas contra entrega)
+                    </span>
+                  </span>
+                  <Input
+                    type="email"
+                    required={metodo === "online"}
+                    autoComplete="email"
+                    placeholder="tu@correo.com"
+                    value={datos.email}
+                    onChange={(e) => set("email", e.target.value)}
+                  />
                 </label>
+                <div className="grid gap-4 sm:grid-cols-[0.8fr_1.2fr]">
+                  <label>
+                    <span className={labelClass}>Documento</span>
+                    <Select
+                      value={datos.documentType}
+                      onChange={(e) =>
+                        set(
+                          "documentType",
+                          e.target.value as DatosEntrega["documentType"],
+                        )
+                      }
+                    >
+                      {DOCUMENTOS.map(([value, nombre]) => (
+                        <option key={value} value={value}>
+                          {nombre}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label>
+                    <span className={labelClass}>Número de documento</span>
+                    <Input
+                      required
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="1234567890"
+                      value={datos.documentId}
+                      onChange={(e) => set("documentId", e.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label>
+                    <span className={labelClass}>Departamento</span>
+                    <Select
+                      value={datos.department}
+                      onChange={(e) =>
+                        set(
+                          "department",
+                          e.target.value as DatosEntrega["department"],
+                        )
+                      }
+                    >
+                      {DEPARTAMENTOS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label>
+                    <span className={labelClass}>Ciudad</span>
+                    <Input
+                      required
+                      autoComplete="address-level2"
+                      placeholder="Medellín"
+                      value={datos.ciudad}
+                      onChange={(e) => set("ciudad", e.target.value)}
+                    />
+                  </label>
+                </div>
                 <label>
                   <span className={labelClass}>Dirección</span>
                   <Input
@@ -308,7 +521,8 @@ export function CheckoutFlow() {
                 <div className="rounded-md bg-arena p-4 text-sm leading-relaxed">
                   Tu paquete llega en caja neutra con remitente genérico. En la
                   guía de envío solo aparece &ldquo;artículos
-                  personales&rdquo;.
+                  personales&rdquo;. Tu documento es solo para la guía y la
+                  factura.
                 </div>
                 <div className="flex gap-3">
                   <Button
@@ -381,12 +595,37 @@ export function CheckoutFlow() {
                   </span>
                 </label>
               </div>
+
+              {errorMsg && (
+                <p role="alert" className="mt-6 text-sm text-error">
+                  {errorMsg}
+                </p>
+              )}
+              {conflictos && (
+                <ConflictPanel
+                  conflictos={conflictos}
+                  itemName={(variantId) =>
+                    cartItems.find((i) => i.variantId === variantId)?.name ??
+                    null
+                  }
+                  onResolve={resolverConflicto}
+                />
+              )}
+
               <div className="mt-6 flex gap-3">
-                <Button variant="ghost" onClick={() => setPaso(2)}>
+                <Button
+                  variant="ghost"
+                  disabled={enviando}
+                  onClick={() => setPaso(2)}
+                >
                   ← Volver
                 </Button>
-                <Button className="flex-1" onClick={confirmar}>
-                  Confirmar pedido
+                <Button
+                  className="flex-1"
+                  disabled={enviando || vacia || conflictos !== null}
+                  onClick={confirmar}
+                >
+                  {enviando ? "Confirmando…" : "Confirmar pedido"}
                 </Button>
               </div>
             </div>

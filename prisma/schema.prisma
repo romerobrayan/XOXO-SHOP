@@ -240,9 +240,13 @@ model Customer {
 }
 
 model Address {
-  id         String   @id @default(cuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  // Nullable because guest checkout is mandatory: a guest order snapshots its
+  // delivery address here with no Customer row behind it. SetNull (not
+  // Cascade) so deleting a customer never deletes the address history that
+  // orders reference.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   fullName     String
   phone        String
@@ -272,6 +276,11 @@ model Order {
   // Short, human-readable code the customer quotes on WhatsApp — "SECRETO-7F3K2M".
   // Customer-facing, so it carries the new brand, not the repository's name.
   orderNumber String @unique
+
+  // One UUID per checkout attempt, generated client-side. A double-tap on
+  // "Confirmar pedido" or a retried request finds the existing order via
+  // the unique index instead of creating (and reserving stock for) a second.
+  idempotencyKey String? @unique
 
   // Nullable: guest checkout is mandatory in this category.
   customerId String?

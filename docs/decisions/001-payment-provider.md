@@ -1,6 +1,13 @@
 # ADR 001 — Payment provider: port + adapters, PayU first, never Stripe
 
-**Status:** Accepted · 2026-07
+**Status:** Accepted · 2026-07 · **§3 amended by ADR 002 (2026-08)**
+
+> **Amendment.** `docs/decisions/002-pasarela-wompi-vs-payu.md` compares the two
+> gateways on price, settlement, payment-method mix and integration cost, and
+> **flips the ordering in §3 below: Wompi is now the primary target, PayU the
+> documented fallback.** Everything else in this ADR — the port, never Stripe,
+> mock until approval, honest category declaration, cash on delivery and manual
+> transfer as first-class methods — stands unchanged.
 
 ## Context
 

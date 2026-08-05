@@ -244,13 +244,28 @@ describe.skipIf(!databaseUrl)("fixtures match a seeded Postgres", () => {
     // CLAUDE.md rule 3: the columns on the variant are the running balance and
     // the ledger explains it. If the seed writes stock without a movement, the
     // demo database is already lying about its own history.
+    //
+    // Two balances, one ledger, split by reason (see checkout/stock.ts):
+    // physical movements reconcile stockOnHand; RESERVATION and
+    // RESERVATION_RELEASE reconcile stockReserved (reservations carry a
+    // negative delta — stock leaving the sellable pool — so the reserved
+    // balance is the negated sum).
     const variants = await db.productVariant.findMany({
       include: { movements: true },
     });
+    const reservationReasons = ["RESERVATION", "RESERVATION_RELEASE"];
     for (const variant of variants) {
-      const ledger = variant.movements.reduce((sum, m) => sum + m.delta, 0);
-      expect(ledger, `ledger mismatch on ${variant.sku}`).toBe(
+      let onHand = 0;
+      let reserved = 0;
+      for (const m of variant.movements) {
+        if (reservationReasons.includes(m.reason)) reserved -= m.delta;
+        else onHand += m.delta;
+      }
+      expect(onHand, `on-hand ledger mismatch on ${variant.sku}`).toBe(
         variant.stockOnHand,
+      );
+      expect(reserved, `reserved ledger mismatch on ${variant.sku}`).toBe(
+        variant.stockReserved,
       );
     }
   });

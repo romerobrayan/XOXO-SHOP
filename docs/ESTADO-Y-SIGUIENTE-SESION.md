@@ -4,9 +4,10 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 31 de julio de 2026 — sesión "Pulido del storefront":
-las fotos llenan las tarjetas, alturas uniformes, iconos Lucide, galería con
-flechas, y el héroe vende con un escaparate animado por familia.
+**Última actualización:** 5 de agosto de 2026 — sesión "Bloque C": el checkout
+escribe `Order` de verdad — snapshots, reserva atómica de stock, número
+`SECRETO-`, idempotencia, expiración de reservas — y hay un e2e de Playwright
+que compra de punta a punta. También: ADR 002 (Wompi primero, PayU respaldo).
 
 ---
 
@@ -16,7 +17,7 @@ flechas, y el héroe vende con un escaparate animado por familia.
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **0 — Diseño**              | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta                                                                 |
 | **1 — Catálogo**            | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
-| **2 — Carrito y checkout**  | No empezada. El checkout actual es solo UI: no escribe `Order` ni reserva stock                                                                                                                       |
+| **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
 | **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
 | **4 — Admin y lanzamiento** | No empezada                                                                                                                                                                                           |
 
@@ -61,6 +62,49 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: Bloque C — que el paso 3 del checkout escriba pedidos de verdad.**
+Antes, la pasarela: ADR 002 (`docs/decisions/002-pasarela-wompi-vs-payu.md`)
+compara PayU y Wompi con números y voltea la prioridad del ADR 001: **Wompi
+primero, PayU respaldo documentado**. El precio de tarjeta empata (las curvas se
+cruzan en $100.000, en mitad del rango de la tienda); lo que pesa es Nequi/PSE
+(más baratos y más discretos), la liquidación D+1 y el costo de integración.
+PayU conserva la carta clave: publica "Sex shop y artículos eróticos" como
+*Restringido* (permitido con autorización) en Colombia. Las páginas legales
+subieron a bloqueantes de onboarding.
+
+Lo construido (detalle por pieza en el Bloque C de §4):
+
+- `schemas.ts` — la bolsa es entrada no confiable; Zod normaliza celular,
+  documento y correo, y exige el correo solo para pago en línea.
+- Migraciones `order_idempotency_key` y `guest_address` — generadas con
+  `prisma migrate diff` contra una Postgres descartable (documentado:
+  `SHADOW_DATABASE_URL` en `.env.example`). **Pendientes de `migrate deploy`
+  contra Neon.**
+- `stock.ts` — reserva/liberación/venta con `UPDATE` crudo condicional; el
+  libro de inventario quedó partido por razón (física ↔ reserva) y
+  `parity.test.ts` concilia ambos saldos.
+- `actions.ts` — `createOrder` con snapshots, dirección de invitado,
+  idempotencia, conflictos por línea y barrido oportunista de reservas
+  vencidas. `expiry.ts` + `/api/cron/release-reservations` (respaldo diario).
+- `CheckoutFlow` — paso 2 con los campos de facturación colombiana
+  (documento, departamento), correo opcional-salvo-online; paso 3 llama la
+  acción, muestra conflictos con resolución de un gesto y el número
+  `SECRETO-` al confirmar. La bolsa se vacía solo cuando el servidor confirma.
+- E2E Playwright que compra de punta a punta, verificado contra una Postgres
+  local: el pedido `SECRETO-7J5VZ6` quedó en la base con su reserva y su
+  movimiento — no es un mock. Ojo: el e2e compra un producto demo, así que la
+  base local diverge de los fixtures después de correrlo; `npx prisma db seed`
+  (con `SEED_ALLOW_ORDER_WIPE=1`, porque ahora hay pedidos) la restaura.
+
+Verificado: `tsc`, lint, **79 pruebas** con base (serializadas: paridad afirma
+sobre el catálogo entero) y 58 + 21 saltadas sin base, build en ambos modos, y
+el e2e en Chromium real. Los archivos de prueba con base corren en serie
+(`vitest.config.ts`); sin base, en paralelo como siempre.
+
+---
+
+### Sesión anterior — 31 de julio de 2026 — Pulido del storefront
 
 **Objetivo: pulir el storefront ahora que hay fotografía real.** Al ver el
 catálogo importado en producción aparecieron cuatro fallos visuales; todos
@@ -327,21 +371,40 @@ directamente en Postgres, falla; después de `prisma db seed`, vuelve a pasar.
 
 ### Bloque B — Base de datos habilitada ✅ hecho
 
-### Bloque C — Órdenes reales en el checkout
+### Bloque C — Órdenes reales en el checkout ✅ hecho (agosto 2026)
 
-Hoy el checkout es una simulación honesta: los tres pasos existen, la bolsa vive en
-Zustand y el paso 3 no escribe nada. Falta lo del servidor:
+El paso 3 escribe de verdad. Lo construido, y las decisiones que lo acompañan:
 
-- `src/features/checkout/schemas.ts` con Zod para los datos de entrega (nombre, celular,
-  departamento, ciudad, dirección, `documentType`, `documentId`) y `actions.ts` con
-  `next-safe-action`.
-- Crear `Order` + `OrderItem` con **snapshots** (nombre, marca, SKU, etiqueta de opciones,
-  precio unitario copiados al momento de comprar).
-- Reserva de stock en `prisma.$transaction` con `updateMany` condicional, más los
-  movimientos `RESERVATION` / `RESERVATION_RELEASE`. El detalle está en el spec §6.4.
-- Generar `orderNumber` con `nanoid`, prefijo `SECRETO-`.
-- Decidir la regla de reserva para contra entrega: el spec recomienda expiración larga
-  (72 h) y depende del porcentaje de no-entrega, que hay que preguntarle a la clienta.
+- **La bolsa es entrada no confiable.** `createOrder` acepta solo
+  `{ variantId, qty, expectedPriceCents }`; el precio se relee de la base al crear.
+  `expectedPriceCents` es lo que el cliente VIO — nunca lo que paga — y sirve para
+  devolver conflictos por línea (`PRICE_CHANGED`, `OUT_OF_STOCK`, `INACTIVE`) que la
+  UI resuelve con un gesto (aceptar precio nuevo / quitar de la bolsa).
+- **Snapshots** en `OrderItem` (nombre, marca, SKU, etiqueta de opciones, precio,
+  imagen) y **dirección de invitado**: `Address.customerId` pasó a nullable
+  (migración `guest_address`) — un pedido guest no crea `Customer`.
+- **Reserva atómica.** El guard del spec §6.4 no compilaba (Prisma no expresa
+  columna contra columna+parámetro): es un `UPDATE` crudo condicional en
+  `stock.ts`, probado con 8 transacciones concurrentes peleando la última unidad.
+  El libro quedó partido por razón: movimientos físicos concilian `stockOnHand`;
+  `RESERVATION`/`RESERVATION_RELEASE` concilian `stockReserved`; una venta pagada
+  escribe dos filas. `parity.test.ts` exige ambas conciliaciones.
+- **Idempotencia:** `Order.idempotencyKey` único (migración `order_idempotency_key`),
+  un UUID por intento de checkout — doble tap o request reintentado devuelve el
+  mismo pedido.
+- **`orderNumber`** `SECRETO-` + 6 símbolos sin ambiguos (nanoid), reintento ante
+  colisión.
+- **Expiración de reservas:** 72 h (contra entrega y online mientras el proveedor
+  es mock — Bloque F la baja a 30 min online cuando exista redirect real).
+  Barrido en `expiry.ts` con transición condicional `PENDING→CANCELLED`, corre
+  oportunista al inicio de `createOrder` y como respaldo en
+  `/api/cron/release-reservations` (`CRON_SECRET`; `vercel.json` lo agenda diario —
+  tier Hobby — y el barrido oportunista cubre el resto).
+- **E2E real:** `playwright.config.ts` + `e2e/checkout.spec.ts` compran de punta a
+  punta (age gate → PDP → bolsa → 3 pasos → `SECRETO-…` visible y bolsa en 0).
+  Salda la deuda "Playwright sin pruebas".
+- **Pendiente del bloque:** confirmar 72 h con el porcentaje real de no-entrega de
+  la clienta (§6), y el correo de confirmación (Resend, Fase 2).
 
 ### Bloque D — Panel admin
 
@@ -367,11 +430,39 @@ idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
 clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
 **margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
 
-### Bloque F — Pagos
+### Bloque F — Pagos 🔄 pasarela comparada, decisión propuesta
 
 Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
-y el mock ya existen; el adaptador de PayU y el webhook con verificación de firma e
-idempotencia entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md`.
+y el mock ya existen; el adaptador y el webhook con verificación de firma e idempotencia
+entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md` y, para la
+comparación completa, **`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
+
+**Lo que cambió (agosto 2026):** se compararon PayU y Wompi en precio, liquidación,
+mezcla de medios de pago y costo de integración. Resumen:
+
+- **El precio de tarjeta es un empate.** Las dos curvas se cruzan en exactamente
+  COP 100.000 — justo en medio del rango de esta tienda ($45.000–$120.000). A 100
+  pedidos de $80.000 al mes, elegir una u otra vale ~COP 7.000 mensuales.
+- **Lo que sí vale plata es la mezcla de medios.** Nequi (1,79 %) y PSE son más
+  baratos y más discretos que la tarjeta; una mezcla realista sale ~18 % más barata
+  que todo-tarjeta. Nequi solo existe del lado de Wompi.
+- **Wompi gana liquidación** (día hábil siguiente, sin costo de retiro) contra PayU
+  (3 días hábiles, 3 retiros gratis al mes y luego $6.500 + IVA), y gana costo de
+  integración (API REST moderna, firma SHA-256, webhook HMAC que calza tal cual con
+  el puerto que ya existe).
+- **PayU gana la única carta que importaba de verdad:** publica una tabla por rubro
+  donde **"Sex shop y artículos eróticos" figura como *Restringido* en Colombia** —
+  o sea, permitido con autorización expresa. Wompi no publica nada equivalente; su
+  reglamento habla en genérico y la contraparte es Bancolombia.
+- **Propuesta:** abrir las dos conversaciones la misma semana declarando la
+  categoría por escrito, con **Wompi primero y PayU como respaldo documentado**, y
+  escribir el adaptador de Wompi contra el sandbox antes de que haya cuenta, para
+  sacar la pasarela de la ruta crítica.
+
+**Bloqueantes de onboarding que no son código** (detalle en el ADR 002): RUT, cédula,
+comprobante de domicilio, extractos; cuenta Bancolombia o Nequi a nombre de quien
+registra —si es persona natural, con más de 30 días y **el primer desembolso llega a
+los 30 días de la primera venta**—; y las **páginas legales publicadas y accesibles**.
 
 ### Bloque G — Arquitectura en la nube 🔄 en curso
 
@@ -404,14 +495,16 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Deuda                                        | Nota                                                                                                                                                                                                                                      |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sslmode=require` sin decidir                | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana  |
-| Playwright instalado sin pruebas             | `@playwright/test` está en `package.json` y no hay `playwright.config.ts` ni un solo test e2e. O se escribe el flujo de compra, o se saca la dependencia                                                                                  |
-| El checkout no persiste                      | Ver Bloque C. Mientras tanto, ningún pedido hecho en la preview existe                                                                                                                                                                    |
+| ~~Playwright instalado sin pruebas~~ ✅       | Saldada en Bloque C: `e2e/checkout.spec.ts` compra de punta a punta. Corre local (`npx playwright test` con `DATABASE_URL`); falta decidir si entra al CI                                                                                 |
+| ~~El checkout no persiste~~ ✅                | Saldada: Bloque C. El paso 3 escribe `Order` + reserva; los pedidos de la preview de Vercel caen en Neon apenas se apliquen las migraciones (`migrate deploy`) — **pendiente de correr contra Neon**                                       |
+| Cron del sweeper en tier Hobby               | `vercel.json` agenda el barrido de reservas vencidas una vez al día (límite Hobby). `createOrder` barre oportunistamente al arrancar, así que el hueco real es una tienda sin ventas por horas. En Pro: subir a `*/10`. Falta `CRON_SECRET` en Vercel |
+| Correo de confirmación de pedido             | El pedido se confirma en pantalla y por WhatsApp; no hay email transaccional todavía (Resend, Fase 2). Cuando exista: remitente y asunto neutros, sin nombres de producto (regla 2)                                                        |
 | Admin sin construir                          | Ver Bloque D                                                                                                                                                                                                                              |
 | Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
 | Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |
 | Enmienda de movimiento sin aprobar           | El escaparate del héroe y la entrada escalonada extienden el spec de movimiento del handoff (que solo define hovers de 150–200 ms). Valores en `globals.css` como `--motion-*`; se aprueban con la Fase 0 o se apagan quitando dos clases |
-| Links muertos del footer                     | "Envíos y garantía" y "Privacidad" siguen en `href="#"` — las páginas de contenido no existen. Escribirlas o quitar los links antes del lanzamiento                                                                                       |
+| **Páginas legales inexistentes** ⚠️           | Subió de prioridad: no es deuda cosmética, es **bloqueante del onboarding de la pasarela** — el análisis de riesgo revisa la tienda en vivo. Faltan tratamiento de datos (Ley 1581/2012), términos y condiciones, envíos y devoluciones (ojo: el retracto de 5 días del Estatuto del Consumidor generalmente **excluye** productos de higiene personal e íntimos — decirlo con precisión). "Envíos y garantía" y "Privacidad" siguen en `href="#"`. Ver ADR 002 |
 | `mediaForSelection` sin cablear              | Fotos por color elegido: implementado y testeado, pero conectar la galería al picker exige reestructurar el PDP en isla cliente (hoy `Gallery` y `PurchasePanel` son hermanos server). Evaluado y diferido                                |
 | Correo comercial inexistente                 | No hay dirección de email del negocio en ningún punto de contacto; el icono Mail de la asesoría es decorativo. Cuando exista: `src/lib/contact.ts` + footer                                                                               |
 | `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente                                                                                                                                                               |
@@ -434,8 +527,14 @@ Estas bloquean decisiones técnicas, no son de diseño. La lista completa está 
    `scripts/import/seleccion.json` y listo.
 3. **Porcentaje de no-entrega en contra entrega** — decide la política de reservas del
    Bloque C. Ella sabe el número.
-4. **Pasarela** — ¿ya se habló con PayU? La categoría se declara honestamente en el
-   onboarding; esto es lo más riesgoso del proyecto y es calendario, no código.
+4. **Pasarela** — la comparación ya está hecha (`docs/decisions/002-pasarela-wompi-vs-payu.md`):
+   la propuesta es **Wompi primero, PayU de respaldo**, abriendo las dos conversaciones la
+   misma semana y declarando la categoría por escrito. Lo que hace falta de su lado:
+   (a) ¿la tienda se registra como persona natural o jurídica? —si es natural, el primer
+   desembolso de Wompi llega a los 30 días de la primera venta—; (b) ¿tiene cuenta
+   Bancolombia o Nequi a su nombre, con más de 30 días?; (c) RUT, cédula, comprobante de
+   domicilio y extractos de los últimos 3 meses. Esto es lo más riesgoso del proyecto y es
+   calendario, no código.
 5. **Envío** — tarifa plana, por ciudad o gratis desde un monto. El handoff muestra
    `$12.000` fijo en el resumen del checkout, que es un supuesto de diseño, no un dato.
 6. **Empaque discreto, en concreto** — qué remitente aparece en la guía. Es una promesa que

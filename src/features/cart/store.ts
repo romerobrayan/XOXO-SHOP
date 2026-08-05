@@ -18,13 +18,15 @@ export type CartItem = {
   qty: number;
 };
 
-// Tarifa plana de envío del handoff ($12.000). Minor units, like all money.
-export const SHIPPING_CENTS = 12_000_00;
+// Flat shipping fee — declared once, next to the server-side order math.
+export { SHIPPING_CENTS } from "@/features/checkout/shipping";
 
 type CartState = {
   items: CartItem[];
   add: (item: Omit<CartItem, "qty">, qty?: number) => void;
   setQty: (variantId: string, qty: number) => void;
+  // Accept a server-reported price change (stale-bag conflict in checkout).
+  reprice: (variantId: string, priceCents: number) => void;
   remove: (variantId: string) => void;
   clear: () => void;
 };
@@ -47,6 +49,12 @@ export const useCart = create<CartState>()(
           }
           return { items: [...state.items, { ...item, qty }] };
         }),
+      reprice: (variantId, priceCents) =>
+        set((state) => ({
+          items: state.items.map((i) =>
+            i.variantId === variantId ? { ...i, priceCents } : i,
+          ),
+        })),
       setQty: (variantId, qty) =>
         set((state) => ({
           items:
