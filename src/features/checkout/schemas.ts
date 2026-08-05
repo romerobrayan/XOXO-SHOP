@@ -61,6 +61,10 @@ export const checkoutItemSchema = z.object({
     .int("La cantidad debe ser un número entero")
     .min(1, "La cantidad mínima es 1")
     .max(MAX_QTY_PER_LINE, `Máximo ${MAX_QTY_PER_LINE} unidades por producto`),
+  // The price the customer SAW, never the price they pay — the action prices
+  // from the database and uses this only to detect a stale bag, so nobody is
+  // silently charged something other than what was on screen.
+  expectedPriceCents: z.number().int().positive().optional(),
 });
 
 // Colombian mobile: 10 digits starting with 3. Accepts the formats people
