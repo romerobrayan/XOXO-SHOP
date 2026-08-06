@@ -1,5 +1,7 @@
 "use client";
 
+import { faBagShopping } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -152,6 +154,11 @@ export function PurchasePanel({ product }: { product: ProductDetailDTO }) {
           </Button>
         ) : (
           <Button onClick={addToBag} className="flex-1">
+            <FontAwesomeIcon
+              icon={faBagShopping}
+              aria-hidden="true"
+              className="size-4"
+            />
             Agregar al carrito
           </Button>
         )}
