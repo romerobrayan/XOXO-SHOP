@@ -30,5 +30,9 @@ export default defineConfig({
     // A cold Turbopack start measured 3 minutes on a Windows dev machine, so
     // the old 120s budget failed before the storefront ever answered.
     timeout: 300_000,
+    // The admin session cookie is issued for this origin, so it has to follow
+    // E2E_PORT. Next does not override variables already present in the
+    // environment, so this wins over .env without editing it.
+    env: { BETTER_AUTH_URL: BASE_URL },
   },
 });
