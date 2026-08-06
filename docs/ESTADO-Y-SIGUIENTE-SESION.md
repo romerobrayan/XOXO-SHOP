@@ -4,10 +4,12 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 5 de agosto de 2026 — sesión "Bloque C": el checkout
-escribe `Order` de verdad — snapshots, reserva atómica de stock, número
-`SECRETO-`, idempotencia, expiración de reservas — y hay un e2e de Playwright
-que compra de punta a punta. También: ADR 002 (Wompi primero, PayU respaldo).
+**Última actualización:** 6 de agosto de 2026 — sesión "Bloque D desplegado":
+el panel admin completo (pedidos + productos) quedó **mergeado a `main` y
+corriendo en producción**, con la migración `admin_auth` aplicada en Neon, las
+variables de better-auth cargadas en Vercel y la cuenta admin real creada. El
+login contra producción está verificado de punta a punta. También: a partir de
+ahora el trabajo va a la rama **`develop`** y de ahí a `main`.
 
 ---
 
@@ -16,10 +18,10 @@ que compra de punta a punta. También: ADR 002 (Wompi primero, PayU respaldo).
 | Fase                        | Estado                                                                                                                                                                                                |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **0 — Diseño**              | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta                                                                 |
-| **1 — Catálogo**            | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
+| **1 — Catálogo**            | **En curso.** Esquema, migración, seed, pipeline de importación (`docs/IMPORT-PROVEEDORES.md`) **y CRUD del panel admin** listos. Falta la curaduría real de la clienta                               |
 | **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
 | **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
-| **4 — Admin y lanzamiento** | **Bloque D completo.** El panel autentica con better-auth, gestiona pedidos con transiciones que escriben al libro, y ya tiene CRUD de productos con el sistema de opciones y ajuste de stock en dos toques |
+| **4 — Admin y lanzamiento** | **Bloque D completo y en producción.** El panel autentica con better-auth (migración en Neon, variables en Vercel, cuenta creada), gestiona pedidos con transiciones que escriben al libro, y tiene CRUD de productos con el sistema de opciones y ajuste de stock en dos toques |
 
 Lo que ya funciona de punta a punta: navegar el catálogo, filtrar por categoría y marca,
 ordenar, abrir un producto, elegir opciones con estados de agotado correctos, agregar a la
@@ -62,6 +64,45 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: Bloque D — construirlo, verificarlo y dejarlo corriendo en
+producción.** El detalle de lo construido está en el Bloque D de §4; esta
+entrada registra lo operativo:
+
+- **Bloque C verificado en local de punta a punta** antes de seguir: migraciones
+  y seed contra la Docker local, las 79 pruebas de entonces, y el e2e comprando
+  de verdad (pedido `SECRETO-MX9WNK` en la base con reserva, snapshot y fila del
+  libro). De paso se encontró y cerró un hueco: `createOrder` descartaba el
+  método de pago; ahora contra entrega escribe su fila `Payment` al crear.
+- **Bloque D completo en dos mitades** (pedidos con better-auth y máquina de
+  estados; productos con opciones, generación de variantes y ajuste de stock en
+  dos toques). Al cierre: **104 pruebas unitarias**, 4/4 e2e, lint y build
+  limpios.
+- **PR #12 mergeado a `main`.** El check de CI murió dos veces **sin ejecutar un
+  solo paso** — outage mayor de GitHub Actions ese día ("job was not acquired by
+  Runner"), no un fallo del código — así que se mergeó con override de admin;
+  la rama estaba verificada completa en local.
+- **Neon migrado:** `20260806045334_admin_auth` aplicada con `migrate deploy`
+  (solo aditiva: las 4 tablas de better-auth). Historial al día: 4 migraciones.
+- **Vercel configurado:** `BETTER_AUTH_SECRET` (secreto propio de producción,
+  distinto al local) y `BETTER_AUTH_URL=https://secretxoxo-shop.vercel.app`
+  cargadas; el deploy de producción quedó en el commit del merge.
+- **Cuenta admin real creada en Neon** (`brayaniselrey09@gmail.com`, vía
+  `admin:create` con la contraseña por variable de entorno). **Login contra
+  producción verificado**: `POST /api/auth/sign-in/email` devuelve sesión.
+- **Nuevo flujo de ramas:** existe `develop`; el trabajo diario va ahí y `main`
+  recibe merges desde `develop` (cada push a `main` sigue desplegando solo).
+- Las ramas ya mergeadas (`feat/bloque-d-panel-pedidos`, `fix/e2e-port-override`,
+  `claude/pasarela-integration-analysis-lj4qt0`) se limpiaron de local y origin.
+
+Deuda operativa de la sesión: el CI de `main` quedó pendiente de re-correr
+cuando pase el outage de GitHub, y la base **local** quedó en estado demo — los
+~14 productos importados se restauran con `npm run import:promote` (el staging
+git-ignored sobrevive).
+
+---
+
+### Sesión anterior — 5 de agosto de 2026 — Bloque C
 
 **Objetivo: Bloque C — que el paso 3 del checkout escriba pedidos de verdad.**
 Antes, la pasarela: ADR 002 (`docs/decisions/002-pasarela-wompi-vs-payu.md`)
@@ -454,9 +495,12 @@ El paso 3 escribe de verdad. Lo construido, y las decisiones que lo acompañan:
 el dueño de la fotografía, Bloque E/H) y borrado de variantes u opciones (romperían el
 libro y el historial de pedidos — se desactiva, no se borra).
 
-**Antes de desplegar el panel:** cargar `BETTER_AUTH_SECRET` y `BETTER_AUTH_URL` en
-Vercel — sin ellas `/admin` no autentica, y `BETTER_AUTH_URL` tiene que coincidir con el
-origen real o la cookie de sesión se emite para otro host.
+**Desplegado (2026-08-06):** mergeado a `main`, migración `admin_auth` en Neon,
+`BETTER_AUTH_SECRET` + `BETTER_AUTH_URL` en Vercel y la cuenta admin real creada.
+Login verificado contra https://secretxoxo-shop.vercel.app/admin/login. Ojo en
+local: `BETTER_AUTH_URL` tiene que coincidir con el origen real (el dev server
+propio corre en 3001) o la cookie de sesión se emite para otro host y el login
+entra en bucle sin error.
 
 ### Bloque E — Fotografía y Cloudinary 🔄 desbloqueado a medias
 
@@ -522,7 +566,7 @@ Dónde estamos:
 | CI                   | ✅ `.github/workflows/ci.yml` — lint, migraciones, seed, suite completa y build contra un Postgres real en cada push y PR a `main`                              |
 | Imágenes             | ✅ **Cloudinary** (`cs2uzjap`) — activo, verificado con subidas reales; el pipeline de importación re-hospeda fotos de proveedor con la transformación de marca |
 | Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2                                                                                                              |
-| Autenticación admin  | ✅ **better-auth** — sesión por correo y contraseña, registro deshabilitado, cuentas por `npm run admin:create`. Falta `BETTER_AUTH_SECRET` y `BETTER_AUTH_URL` en Vercel                       |
+| Autenticación admin  | ✅ **better-auth** — sesión por correo y contraseña, registro deshabilitado, cuentas por `npm run admin:create`. Variables cargadas en Vercel y login verificado contra producción              |
 
 **Producción:** https://secretxoxo-shop.vercel.app — cada push a `main` despliega
 solo y cada PR recibe su URL de preview. Comprobado que lee de Neon contando
@@ -544,7 +588,8 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | ~~El checkout no persiste~~ ✅                | Saldada: Bloque C. El paso 3 escribe `Order` + reserva. Las migraciones de Bloque C **ya están aplicadas en Neon** (`migrate deploy`, 2026-08-06), así que la preview de Vercel acepta pedidos de invitado                                  |
 | Cron del sweeper en tier Hobby               | `vercel.json` agenda el barrido de reservas vencidas una vez al día (límite Hobby). `createOrder` barre oportunistamente al arrancar, así que el hueco real es una tienda sin ventas por horas. En Pro: subir a `*/10`. Falta `CRON_SECRET` en Vercel |
 | Correo de confirmación de pedido             | El pedido se confirma en pantalla y por WhatsApp; no hay email transaccional todavía (Resend, Fase 2). Cuando exista: remitente y asunto neutros, sin nombres de producto (regla 2)                                                        |
-| Admin a medias                               | Pedidos listos (lista, detalle, transiciones de estado con efecto en el libro). Falta el CRUD de productos con el sistema de opciones y el ajuste de stock en dos toques — ver Bloque D                                                    |
+| ~~Admin a medias~~ ✅                         | Saldada: Bloque D completo y en producción — pedidos y productos, con el ajuste de stock escribiendo al libro. Ver Bloque D                                                                                                                |
+| CI de `main` sin re-correr                   | El merge de Bloque D entró durante un outage mayor de GitHub Actions (el job nunca obtuvo runner). Re-correr el workflow de `main` cuando pase, o dejar que el siguiente push lo cubra — el código está verificado en local               |
 | Pago en línea sin registrar en el pedido     | `createOrder` solo escribe una fila `Payment` para contra entrega, que es el único método conocido en el checkout. Con `ONLINE` la pasarela elige el riel y su webhook escribe la fila (Bloque F); hasta entonces el panel muestra "la pasarela todavía no registra un intento" |
 | Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |

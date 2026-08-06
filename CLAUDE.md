@@ -260,6 +260,10 @@ announcement bar).
 
 ## Conventions
 
+- **Branch flow: work lands on `develop` first.** Feature branches cut from
+  `develop` and PR back into it; `develop` merges into `main` when a state is
+  ready to ship. Every push to `main` auto-deploys production on Vercel, so
+  `main` only receives merges from `develop`.
 - Route slugs in Spanish (`/tienda`, `/carrito`, `/checkout`), code and comments in
   English.
 - Customer-facing copy in Spanish, `es-CO`. Active voice, sentence case, plain verbs.
@@ -290,9 +294,14 @@ a 3-step checkout (client-side bag, no `Order` written yet), deployed to a Verce
 `PAYMENT_PROVIDER=mock`. The age gate is part of what the client is approving, not a later
 addition.
 
-**Phase 1 in progress.** Schema, first migration, and seed are in; admin CRUD is the open
-half. `docs/ESTADO-Y-SIGUIENTE-SESION.md` tracks what is done, what is open debt, and what
-comes next — update it at the end of a working session.
+**Bloques C and D shipped and in production (2026-08-06).** Checkout writes real
+orders against Neon, and the admin panel (better-auth login, order management with
+the status machine, product CRUD with the option system and two-tap stock
+adjustment) is live at `/admin`. Staff accounts are created with
+`ADMIN_PASSWORD='…' npm run admin:create -- --email …` — sign-up is disabled on
+purpose. `docs/ESTADO-Y-SIGUIENTE-SESION.md` tracks what is done, what is open
+debt, and what comes next — update it at the end of a working session. Next
+block: F (Wompi sandbox adapter).
 
 **Images.** Real product photography does not exist yet. Use
 `ProductImagePlaceholder` (4:5, diagonal arena stripes, visible "Imagen pendiente"
