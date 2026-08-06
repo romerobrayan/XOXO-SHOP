@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
-// Products and inventory arrive with the rest of Bloque D; the nav is a list
-// so adding them is one entry, not a restructure.
-const TABS = [{ href: "/admin/pedidos", label: "Pedidos" }];
+const TABS = [
+  { href: "/admin/pedidos", label: "Pedidos" },
+  { href: "/admin/productos", label: "Productos" },
+];
 
 export function PanelNav() {
   const pathname = usePathname();

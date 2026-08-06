@@ -19,7 +19,7 @@ que compra de punta a punta. También: ADR 002 (Wompi primero, PayU respaldo).
 | **1 — Catálogo**            | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
 | **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
 | **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
-| **4 — Admin y lanzamiento** | **En curso (Bloque D, primera mitad).** El panel autentica con better-auth y ya lista, detalla y mueve pedidos escribiendo al libro de inventario. Falta el CRUD de productos y el ajuste de stock     |
+| **4 — Admin y lanzamiento** | **Bloque D completo.** El panel autentica con better-auth, gestiona pedidos con transiciones que escriben al libro, y ya tiene CRUD de productos con el sistema de opciones y ajuste de stock en dos toques |
 
 Lo que ya funciona de punta a punta: navegar el catálogo, filtrar por categoría y marca,
 ordenar, abrir un producto, elegir opciones con estados de agotado correctos, agregar a la
@@ -406,7 +406,7 @@ El paso 3 escribe de verdad. Lo construido, y las decisiones que lo acompañan:
 - **Pendiente del bloque:** confirmar 72 h con el porcentaje real de no-entrega de
   la clienta (§6), y el correo de confirmación (Resend, Fase 2).
 
-### Bloque D — Panel admin 🔄 pedidos listos, catálogo pendiente
+### Bloque D — Panel admin ✅ completo
 
 **Hecho (2026-08-06).** Autenticación con `better-auth` y la mitad de pedidos:
 
@@ -429,8 +429,30 @@ El paso 3 escribe de verdad. Lo construido, y las decisiones que lo acompañan:
 - `e2e/admin-orders.spec.ts` — el gate rechaza sin sesión, y una asesora entra, ve el
   pedido recién comprado y lo lleva hasta entregado.
 
-**Falta:** CRUD de productos con el sistema de opciones y ajuste de stock en dos toques,
-siempre escribiendo al libro. La clienta lo va a usar de pie en una bodega, con una mano.
+**Y la segunda mitad (misma fecha).** `/admin/productos`:
+
+- Lista con estado, stock disponible agregado y alerta de poco stock; crear y editar
+  producto (marca, categoría, referencia, estado con `publishedAt` en la primera
+  activación — el slug nunca cambia: es la URL ya compartida por WhatsApp).
+- **Opciones y valores solo crecen** desde el panel; quitar uno dejaría huérfanas
+  variantes con historial en el libro. La jugada reversible es desactivar la variante.
+- **Generar combinaciones**: producto cartesiano de los valores, saltando los
+  `optionKey` que ya existen — generación aditiva, nunca reconstrucción. SKU propuesto
+  `REF-VALOR-VALOR` (editable), precio de entrada para las nuevas.
+- **Ajuste de stock en dos toques** (`src/features/products/stock-adjust.ts`): − / + y
+  Aplicar, con el motivo siguiendo el signo (entra → `PURCHASE`, sale → `MANUAL_ADJUST`
+  o `DAMAGE`). Mismo patrón que el checkout: un UPDATE condicional que **no deja caer
+  `stockOnHand` por debajo de `stockReserved`** — esas unidades son de pedidos abiertos —
+  y la fila del libro en la misma transacción. Probado con 8 ajustes concurrentes
+  peleando 3 unidades: ganan exactamente 3 y el libro reconcilia.
+- El stock inicial de un producto nuevo es 0 a propósito: las unidades entran por el
+  ajuste, que es lo que escribe de dónde salieron.
+- `e2e/admin-products.spec.ts`: crear → opciones → generar → recibir 5 unidades →
+  publicar → verlo en la tienda.
+
+**Fuera de alcance, deliberadamente:** medios del producto (el pipeline de Cloudinary es
+el dueño de la fotografía, Bloque E/H) y borrado de variantes u opciones (romperían el
+libro y el historial de pedidos — se desactiva, no se borra).
 
 **Antes de desplegar el panel:** cargar `BETTER_AUTH_SECRET` y `BETTER_AUTH_URL` en
 Vercel — sin ellas `/admin` no autentica, y `BETTER_AUTH_URL` tiene que coincidir con el
