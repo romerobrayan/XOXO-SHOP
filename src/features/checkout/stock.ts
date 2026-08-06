@@ -129,3 +129,36 @@ export async function commitSale(
     ]),
   });
 }
+
+/**
+ * Puts sold units back on the shelf — a refund after the goods came back.
+ * Only stockOnHand moves: the reservation was already consumed by the sale,
+ * so there is nothing reserved left to release.
+ *
+ * Deliberately not the mirror of commitSale. Returned stock is physically
+ * back and sellable, so it is not conditional on anything; if the units did
+ * not actually come back, the correction is a DAMAGE or MANUAL_ADJUST row,
+ * which keeps the reason column meaning what it says.
+ */
+export async function returnStock(
+  tx: Prisma.TransactionClient,
+  orderId: string | null,
+  lines: StockLine[],
+  note?: string,
+): Promise<void> {
+  for (const { variantId, qty } of lines) {
+    await tx.$executeRaw`
+      UPDATE "ProductVariant"
+      SET "stockOnHand" = "stockOnHand" + ${qty}, "updatedAt" = now()
+      WHERE "id" = ${variantId}`;
+  }
+  await tx.inventoryMovement.createMany({
+    data: lines.map(({ variantId, qty }) => ({
+      variantId,
+      delta: qty,
+      reason: "RETURN" as const,
+      orderId,
+      note,
+    })),
+  });
+}

@@ -19,7 +19,7 @@ que compra de punta a punta. También: ADR 002 (Wompi primero, PayU respaldo).
 | **1 — Catálogo**            | **En curso.** Esquema, migración, seed **y pipeline de importación desde los dos proveedores** listos (`docs/IMPORT-PROVEEDORES.md`). Falta el CRUD del panel admin y la curaduría real de la clienta |
 | **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
 | **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
-| **4 — Admin y lanzamiento** | No empezada                                                                                                                                                                                           |
+| **4 — Admin y lanzamiento** | **Bloque D completo.** El panel autentica con better-auth, gestiona pedidos con transiciones que escriben al libro, y ya tiene CRUD de productos con el sistema de opciones y ajuste de stock en dos toques |
 
 Lo que ya funciona de punta a punta: navegar el catálogo, filtrar por categoría y marca,
 ordenar, abrir un producto, elegir opciones con estados de agotado correctos, agregar a la
@@ -406,12 +406,57 @@ El paso 3 escribe de verdad. Lo construido, y las decisiones que lo acompañan:
 - **Pendiente del bloque:** confirmar 72 h con el porcentaje real de no-entrega de
   la clienta (§6), y el correo de confirmación (Resend, Fase 2).
 
-### Bloque D — Panel admin
+### Bloque D — Panel admin ✅ completo
 
-Es la mitad abierta de la Fase 1. `src/app/(admin)/admin/page.tsx` es un placeholder.
-Necesita autenticación (`better-auth`), CRUD de productos con el sistema de opciones, y
-ajuste de stock en dos toques escribiendo siempre al libro de inventario. La clienta lo va
-a usar de pie en una bodega, con una mano.
+**Hecho (2026-08-06).** Autenticación con `better-auth` y la mitad de pedidos:
+
+- Sesión por correo y contraseña sobre `User` / `Session` / `Account` / `Verification`
+  (migración `admin_auth`). **El registro está deshabilitado a propósito**: better-auth
+  monta un endpoint de alta por defecto y, en una tienda desplegada, eso deja que
+  cualquiera se cree una cuenta al panel donde se ven nombres, teléfonos y cédulas. Las
+  cuentas se crean con `ADMIN_PASSWORD='…' npm run admin:create -- --email …`.
+- `/admin/pedidos` — lista con filtro por estado y contadores; `/admin/pedidos/[número]`
+  — detalle con artículos (snapshots), datos de facturación colombianos y pago.
+- Transiciones de estado como **máquina de estados pura** en
+  `src/features/orders/transitions.ts`, con el efecto sobre el inventario declarado por
+  transición (`release` / `commit` / `return` / `none`) en vez de deducido del par. Es la
+  parte del panel que puede corromper el libro en silencio, así que vive en un módulo que
+  un test puede leer entero — 12 pruebas fijan las invariantes (solo se envía desde
+  `PROCESSING`, cancelar siempre libera, reembolsar siempre devuelve).
+- La acción hace **compare-and-set** sobre el estado que vio el panel: el barrido de
+  reservas vencidas cancela pedidos por su cuenta, así que un "cancelar" desde una pestaña
+  vieja podía llegar cuando el pedido ya no estaba en `PENDING` y liberar stock dos veces.
+- `e2e/admin-orders.spec.ts` — el gate rechaza sin sesión, y una asesora entra, ve el
+  pedido recién comprado y lo lleva hasta entregado.
+
+**Y la segunda mitad (misma fecha).** `/admin/productos`:
+
+- Lista con estado, stock disponible agregado y alerta de poco stock; crear y editar
+  producto (marca, categoría, referencia, estado con `publishedAt` en la primera
+  activación — el slug nunca cambia: es la URL ya compartida por WhatsApp).
+- **Opciones y valores solo crecen** desde el panel; quitar uno dejaría huérfanas
+  variantes con historial en el libro. La jugada reversible es desactivar la variante.
+- **Generar combinaciones**: producto cartesiano de los valores, saltando los
+  `optionKey` que ya existen — generación aditiva, nunca reconstrucción. SKU propuesto
+  `REF-VALOR-VALOR` (editable), precio de entrada para las nuevas.
+- **Ajuste de stock en dos toques** (`src/features/products/stock-adjust.ts`): − / + y
+  Aplicar, con el motivo siguiendo el signo (entra → `PURCHASE`, sale → `MANUAL_ADJUST`
+  o `DAMAGE`). Mismo patrón que el checkout: un UPDATE condicional que **no deja caer
+  `stockOnHand` por debajo de `stockReserved`** — esas unidades son de pedidos abiertos —
+  y la fila del libro en la misma transacción. Probado con 8 ajustes concurrentes
+  peleando 3 unidades: ganan exactamente 3 y el libro reconcilia.
+- El stock inicial de un producto nuevo es 0 a propósito: las unidades entran por el
+  ajuste, que es lo que escribe de dónde salieron.
+- `e2e/admin-products.spec.ts`: crear → opciones → generar → recibir 5 unidades →
+  publicar → verlo en la tienda.
+
+**Fuera de alcance, deliberadamente:** medios del producto (el pipeline de Cloudinary es
+el dueño de la fotografía, Bloque E/H) y borrado de variantes u opciones (romperían el
+libro y el historial de pedidos — se desactiva, no se borra).
+
+**Antes de desplegar el panel:** cargar `BETTER_AUTH_SECRET` y `BETTER_AUTH_URL` en
+Vercel — sin ellas `/admin` no autentica, y `BETTER_AUTH_URL` tiene que coincidir con el
+origen real o la cookie de sesión se emite para otro host.
 
 ### Bloque E — Fotografía y Cloudinary 🔄 desbloqueado a medias
 
@@ -477,7 +522,7 @@ Dónde estamos:
 | CI                   | ✅ `.github/workflows/ci.yml` — lint, migraciones, seed, suite completa y build contra un Postgres real en cada push y PR a `main`                              |
 | Imágenes             | ✅ **Cloudinary** (`cs2uzjap`) — activo, verificado con subidas reales; el pipeline de importación re-hospeda fotos de proveedor con la transformación de marca |
 | Correo transaccional | ⬜ Resend, en `.env.example` y sin cablear. Fase 2                                                                                                              |
-| Autenticación admin  | ⬜ better-auth. Bloque D                                                                                                                                        |
+| Autenticación admin  | ✅ **better-auth** — sesión por correo y contraseña, registro deshabilitado, cuentas por `npm run admin:create`. Falta `BETTER_AUTH_SECRET` y `BETTER_AUTH_URL` en Vercel                       |
 
 **Producción:** https://secretxoxo-shop.vercel.app — cada push a `main` despliega
 solo y cada PR recibe su URL de preview. Comprobado que lee de Neon contando
@@ -496,10 +541,11 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sslmode=require` sin decidir                | El driver `pg` avisa que hoy `require` se comporta como `verify-full`, y que en `pg` v9 pasará a la semántica de libpq, más débil. Dejarlo explícito en `?sslmode=verify-full` es un no-op hoy y evita una degradación silenciosa mañana  |
 | ~~Playwright instalado sin pruebas~~ ✅       | Saldada en Bloque C: `e2e/checkout.spec.ts` compra de punta a punta. Corre local (`npx playwright test` con `DATABASE_URL`); falta decidir si entra al CI                                                                                 |
-| ~~El checkout no persiste~~ ✅                | Saldada: Bloque C. El paso 3 escribe `Order` + reserva; los pedidos de la preview de Vercel caen en Neon apenas se apliquen las migraciones (`migrate deploy`) — **pendiente de correr contra Neon**                                       |
+| ~~El checkout no persiste~~ ✅                | Saldada: Bloque C. El paso 3 escribe `Order` + reserva. Las migraciones de Bloque C **ya están aplicadas en Neon** (`migrate deploy`, 2026-08-06), así que la preview de Vercel acepta pedidos de invitado                                  |
 | Cron del sweeper en tier Hobby               | `vercel.json` agenda el barrido de reservas vencidas una vez al día (límite Hobby). `createOrder` barre oportunistamente al arrancar, así que el hueco real es una tienda sin ventas por horas. En Pro: subir a `*/10`. Falta `CRON_SECRET` en Vercel |
 | Correo de confirmación de pedido             | El pedido se confirma en pantalla y por WhatsApp; no hay email transaccional todavía (Resend, Fase 2). Cuando exista: remitente y asunto neutros, sin nombres de producto (regla 2)                                                        |
-| Admin sin construir                          | Ver Bloque D                                                                                                                                                                                                                              |
+| Admin a medias                               | Pedidos listos (lista, detalle, transiciones de estado con efecto en el libro). Falta el CRUD de productos con el sistema de opciones y el ajuste de stock en dos toques — ver Bloque D                                                    |
+| Pago en línea sin registrar en el pedido     | `createOrder` solo escribe una fila `Payment` para contra entrega, que es el único método conocido en el checkout. Con `ONLINE` la pasarela elige el riel y su webhook escribe la fila (Bloque F); hasta entonces el panel muestra "la pasarela todavía no registra un intento" |
 | Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
 | Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |

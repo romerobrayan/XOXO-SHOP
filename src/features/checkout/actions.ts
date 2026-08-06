@@ -190,6 +190,23 @@ export const createOrder = actionClient
             },
             select: { id: true, orderNumber: true },
           });
+          // Contra entrega is the one method known at checkout time, so it is
+          // the one that gets a Payment row here: the panel has to be able to
+          // tell an advisor "collect on delivery" without guessing. ONLINE
+          // deliberately gets none — the gateway picks the actual rail
+          // (CARD / PSE / NEQUI) and its webhook writes the row (spec §2), and
+          // inventing a value now would put a wrong rail in the ledger.
+          if (paymentMethod === "CASH_ON_DELIVERY") {
+            await tx.payment.create({
+              data: {
+                orderId: created.id,
+                provider: "manual",
+                method: "CASH_ON_DELIVERY",
+                status: "PENDING",
+                amountCents: totalCents,
+              },
+            });
+          }
           await reserveStock(tx, created.id, lines);
           return created;
         });

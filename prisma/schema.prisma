@@ -401,3 +401,83 @@ enum PaymentStatus {
   ERROR
   REFUNDED
 }
+
+// ─── Admin authentication ───────────────────────────────────
+//
+// Owned by better-auth, not by us: the shape below is the library's core
+// schema, so it is the one place in this file where the columns are not ours
+// to redesign. Field names and nullability must match what the adapter
+// expects or it fails at runtime rather than at build time.
+//
+// These are STAFF accounts for the admin panel — the shop owner and her
+// advisors. Customers are `Customer`, have no login, and never appear here:
+// guest checkout is mandatory (CLAUDE.md rule 3), so a buyer never has
+// credentials to store.
+
+model User {
+  id            String  @id
+  name          String
+  email         String  @unique
+  emailVerified Boolean @default(false)
+  image         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+}
+
+model Session {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime
+
+  ipAddress String?
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id         String @id
+  accountId  String
+  providerId String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Set for the credential provider only: the hashed password. Never the
+  // plaintext, and never logged.
+  password String?
+
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([identifier])
+}
