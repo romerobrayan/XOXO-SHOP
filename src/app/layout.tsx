@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Marcellus } from "next/font/google";
+import { config } from "@fortawesome/fontawesome-svg-core";
+import "@fortawesome/fontawesome-svg-core/styles.css";
 import "./globals.css";
+
+// Font Awesome injects its CSS at runtime by default; with RSC that lands
+// after first paint and the icons flash full-width. Ship the stylesheet
+// statically instead.
+config.autoAddCss = false;
 
 const marcellus = Marcellus({
   variable: "--font-marcellus",
