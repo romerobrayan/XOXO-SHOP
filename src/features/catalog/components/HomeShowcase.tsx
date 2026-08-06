@@ -68,7 +68,7 @@ export function HomeShowcase({ products }: { products: ProductCardDTO[] }) {
                 <img
                   src={active.image.url}
                   alt={active.image.alt}
-                  className="hidden h-full w-full bg-arena object-cover sm:block"
+                  className="hidden h-full w-full bg-arena object-contain object-center sm:block"
                 />
               ) : (
                 <ProductImagePlaceholder

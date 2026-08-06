@@ -20,7 +20,7 @@ export function GalleryMedia({ item }: { item: MediaDTO }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- Cloudinary delivers pre-sized assets
     <img
-      className="aspect-[4/5] w-full rounded-lg bg-arena object-cover"
+      className="aspect-[4/5] w-full rounded-lg bg-arena object-contain object-center"
       src={item.url}
       alt={item.alt}
     />

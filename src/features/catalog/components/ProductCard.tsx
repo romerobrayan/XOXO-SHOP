@@ -1,9 +1,14 @@
 "use client";
 
+import { faBagShopping, faCheck } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { ProductImagePlaceholder } from "@/components/commerce/ProductImagePlaceholder";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useCart } from "@/features/cart/store";
 import { cn } from "@/lib/utils";
 import type { ProductCardDTO } from "../dto";
 import { Price } from "./Price";
@@ -17,8 +22,11 @@ export function cardKicker(product: ProductCardDTO): string {
 // con la única sombra de tarjeta del sistema. Sold out keeps three non-color
 // signals: dimmed media, explicit badge, and "Agotado" text.
 //
-// The whole card is one target. With `onSelect` it becomes a button (home
-// opens the product modal); without it, a link to the PDP (catálogo).
+// Media + info are one target (with `onSelect` a button — home opens the
+// product modal; without it, a link to the PDP), and the card closes with an
+// explicit action row: add-to-bag for single-variant products ("Elegir
+// opciones" routes to the PDP otherwise) plus "Ver detalle". The buttons keep
+// a fixed size in every state — only the glyph swaps on feedback.
 export function ProductCard({
   product,
   onSelect,
@@ -27,6 +35,28 @@ export function ProductCard({
   onSelect?: () => void;
 }) {
   const out = product.availability.state === "out";
+  const add = useCart((s) => s.add);
+  const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    if (!added) return;
+    const timer = setTimeout(() => setAdded(false), 2000);
+    return () => clearTimeout(timer);
+  }, [added]);
+
+  function addToBag() {
+    if (!product.addToCartVariantId) return;
+    add({
+      variantId: product.addToCartVariantId,
+      productId: product.id,
+      slug: product.slug,
+      name: product.name,
+      kicker: cardKicker(product) || null,
+      variantLabel: null,
+      priceCents: product.priceFromCents,
+    });
+    setAdded(true);
+  }
 
   const body = (
     <>
@@ -37,7 +67,7 @@ export function ProductCard({
             src={product.image.url}
             alt={product.image.alt}
             loading="lazy"
-            className="aspect-[4/5] w-full bg-arena object-cover"
+            className="aspect-[4/5] w-full bg-arena object-contain object-center"
           />
         ) : (
           <ProductImagePlaceholder
@@ -56,7 +86,7 @@ export function ProductCard({
       {/* flex-1 + mt-auto keep every card in a row the same height: the name
           reserves exactly two lines and the price row sits on the bottom
           edge regardless of how short the name is. */}
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-4 pb-0">
         {/* One line always: long category·brand pairs must not break the
             card rhythm down the grid. */}
         <p className="kicker truncate">{cardKicker(product)}</p>
@@ -82,23 +112,45 @@ export function ProductCard({
     </>
   );
 
-  const cardClass =
-    "flex h-full w-full flex-col overflow-hidden rounded-md border border-linea bg-crema text-left transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-card";
+  const mediaClass = "flex w-full flex-1 flex-col text-left";
 
-  if (onSelect) {
-    return (
-      <article>
-        <button type="button" onClick={onSelect} className={cardClass}>
+  return (
+    <article className="flex h-full w-full flex-col overflow-hidden rounded-md border border-linea bg-crema transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-card">
+      {onSelect ? (
+        <button type="button" onClick={onSelect} className={mediaClass}>
           {body}
         </button>
-      </article>
-    );
-  }
-  return (
-    <article>
-      <Link href={`/tienda/${product.slug}`} className={cardClass}>
-        {body}
-      </Link>
+      ) : (
+        <Link href={`/tienda/${product.slug}`} className={mediaClass}>
+          {body}
+        </Link>
+      )}
+      <div className="flex flex-col gap-2 p-4">
+        {out ? (
+          <Button size="sm" disabled>
+            Agotado
+          </Button>
+        ) : product.addToCartVariantId ? (
+          <Button size="sm" onClick={addToBag}>
+            <FontAwesomeIcon
+              icon={added ? faCheck : faBagShopping}
+              aria-hidden="true"
+              className="size-4"
+            />
+            Agregar
+          </Button>
+        ) : (
+          <Button size="sm" asChild>
+            <Link href={`/tienda/${product.slug}`}>Elegir opciones</Link>
+          </Button>
+        )}
+        <Button size="sm" variant="outline" asChild>
+          <Link href={`/tienda/${product.slug}`}>Ver detalle</Link>
+        </Button>
+        <span aria-live="polite" className="sr-only">
+          {added ? "Agregado a tu bolsa." : ""}
+        </span>
+      </div>
     </article>
   );
 }

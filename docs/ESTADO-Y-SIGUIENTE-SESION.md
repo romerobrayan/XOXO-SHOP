@@ -180,6 +180,18 @@ como el texto (la regla cuerpo/vino asume superficie clara). Convención
 definida: `size-4` inline, `size-5` en controles de ≥44px. El pill de WhatsApp
 sigue sin icono (solo su `→`, como manda el handoff).
 
+**Las tarjetas de producto ganaron acciones explícitas (2026-08-06).** El
+handoff traía la tarjeta como un único target silencioso; ahora cada tarjeta
+cierra con "Agregar" (variante única, `faBagShopping`, feedback de check 2 s
+sin cambiar el tamaño del botón) o "Elegir opciones" (ruta a la PDP), más
+"Ver detalle" en contorno — media y nombre conservan su comportamiento
+(modal en la home, PDP en el catálogo). Los sellos de categoría cambiaron la
+inicial por iconos Lucide outline (`Shirt`/`Droplets`/`Sparkles`, mapeo por
+slug con fallback a la inicial), y las imágenes de tarjeta, modal y galería
+pasaron a `object-contain object-center` para que cualquier foto no-4:5 se
+vea completa y centrada. Extensión visible del diseño de Fase 0: señalarla en
+la siguiente vista previa a la clienta.
+
 **La galería del PDP tiene señales.** Antes era un scroll-snap con la barra
 oculta: en desktop nada indicaba que había más fotos. Ahora: 0 fotos →
 placeholder servidor; 1 foto → sin JS de cliente; 2+ → reel con flechas
