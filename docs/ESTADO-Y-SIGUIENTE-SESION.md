@@ -170,12 +170,27 @@ Lucide outline stroke 1.5 "donde se necesiten (bolsa, búsqueda, flechas)":
 `ShoppingBag` en "Bolsa", `ChevronLeft/Right` en la galería, `Mail` decorativo
 en la asesoría (sin mailto — **no existe correo comercial todavía**; cuando lo
 haya, agregarlo a `src/lib/contact.ts` y al footer es una línea). Desviaciones:
-(1) lucide 1.x no trae glifos de marca y la guía veta los rellenos → Instagram/
-WhatsApp usan stand-ins semánticos (`Camera`/`MessageCircle`) siempre junto a
-su texto; (2) en el footer vino los iconos heredan marfil como el texto (la
-regla cuerpo/vino asume superficie clara). Convención definida: `size-4`
-inline, `size-5` en controles de ≥44px. El pill de WhatsApp sigue sin icono
-(solo su `→`, como manda el handoff).
+(1) **Font Awesome Free entra como excepción acotada a la regla anti-rellenos**
+(2026-08-06) — glifos de marca reales (`faInstagram`/`faWhatsapp`, brands)
+reemplazan los stand-ins `Camera`/`MessageCircle` del footer (un logo no se
+redibuja en outline), y `faBagShopping` (solid) acompaña "Agregar al carrito"
+en la PDP y el modal de la home; alcance documentado en `.font-awesome.md`,
+todo lo demás sigue en Lucide; (2) en el footer vino los iconos heredan marfil
+como el texto (la regla cuerpo/vino asume superficie clara). Convención
+definida: `size-4` inline, `size-5` en controles de ≥44px. El pill de WhatsApp
+sigue sin icono (solo su `→`, como manda el handoff).
+
+**Las tarjetas de producto ganaron acciones explícitas (2026-08-06).** El
+handoff traía la tarjeta como un único target silencioso; ahora cada tarjeta
+cierra con "Agregar" (variante única, `faBagShopping`, feedback de check 2 s
+sin cambiar el tamaño del botón) o "Elegir opciones" (ruta a la PDP), más
+"Ver detalle" en contorno — media y nombre conservan su comportamiento
+(modal en la home, PDP en el catálogo). Los sellos de categoría cambiaron la
+inicial por iconos Lucide outline (`Shirt`/`Droplets`/`Sparkles`, mapeo por
+slug con fallback a la inicial), y las imágenes de tarjeta, modal y galería
+pasaron a `object-contain object-center` para que cualquier foto no-4:5 se
+vea completa y centrada. Extensión visible del diseño de Fase 0: señalarla en
+la siguiente vista previa a la clienta.
 
 **La galería del PDP tiene señales.** Antes era un scroll-snap con la barra
 oculta: en desktop nada indicaba que había más fotos. Ahora: 0 fotos →

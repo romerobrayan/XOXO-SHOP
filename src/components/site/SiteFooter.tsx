@@ -1,4 +1,5 @@
-import { Camera, MessageCircle } from "lucide-react";
+import { faInstagram, faWhatsapp } from "@fortawesome/free-brands-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { INSTAGRAM_URL, whatsappHref } from "@/lib/contact";
 
@@ -6,11 +7,10 @@ import { INSTAGRAM_URL, whatsappHref } from "@/lib/contact";
 // derecha. La nota de vista previa es requisito de la Fase 0 — el cliente
 // aprueba un diseño con fotografía pendiente y debe saberlo.
 //
-// Iconos: lucide 1.x no trae glifos de marca y la guía veta los rellenos, así
-// que Instagram/WhatsApp usan stand-ins semánticos (Camera/MessageCircle)
-// siempre acompañados del texto — el glifo refuerza, no identifica. Heredan
-// el marfil del link (la regla cuerpo/vino de la guía asume superficie clara);
-// desviación registrada en docs/ESTADO-Y-SIGUIENTE-SESION.md.
+// Iconos: los glifos de marca vienen de Font Awesome Brands (rellenos — un
+// logo no se redibuja en outline; excepción a la regla de la guía, registrada
+// en docs/ESTADO-Y-SIGUIENTE-SESION.md), siempre acompañados del texto.
+// Heredan el marfil del link (la regla cuerpo/vino asume superficie clara).
 export function SiteFooter() {
   return (
     <footer className="bg-vino text-marfil">
@@ -29,7 +29,11 @@ export function SiteFooter() {
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-marfil hover:text-oro"
             >
-              <Camera aria-hidden="true" strokeWidth={1.5} className="size-4" />
+              <FontAwesomeIcon
+                icon={faInstagram}
+                aria-hidden="true"
+                className="size-4"
+              />
               Instagram
             </a>
             <a
@@ -38,9 +42,9 @@ export function SiteFooter() {
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-marfil hover:text-oro"
             >
-              <MessageCircle
+              <FontAwesomeIcon
+                icon={faWhatsapp}
                 aria-hidden="true"
-                strokeWidth={1.5}
                 className="size-4"
               />
               WhatsApp

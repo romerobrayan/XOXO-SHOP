@@ -1,5 +1,7 @@
 "use client";
 
+import { faBagShopping } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -66,7 +68,7 @@ export function HomeShowcase({ products }: { products: ProductCardDTO[] }) {
                 <img
                   src={active.image.url}
                   alt={active.image.alt}
-                  className="hidden h-full w-full bg-arena object-cover sm:block"
+                  className="hidden h-full w-full bg-arena object-contain object-center sm:block"
                 />
               ) : (
                 <ProductImagePlaceholder
@@ -95,7 +97,14 @@ export function HomeShowcase({ products }: { products: ProductCardDTO[] }) {
                   {active.availability.state === "out" ? (
                     <Button disabled>Agotado</Button>
                   ) : active.addToCartVariantId ? (
-                    <Button onClick={addActive}>Agregar al carrito</Button>
+                    <Button onClick={addActive}>
+                      <FontAwesomeIcon
+                        icon={faBagShopping}
+                        aria-hidden="true"
+                        className="size-4"
+                      />
+                      Agregar al carrito
+                    </Button>
                   ) : (
                     <Button asChild>
                       <Link href={`/tienda/${active.slug}`}>
