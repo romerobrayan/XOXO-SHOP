@@ -116,9 +116,43 @@ natural, NIT o cédula y domicilio, en `RESPONSABLE` de `src/lib/legal.ts`. Hoy
 la política se sostiene sobre el nombre comercial, la ciudad y el WhatsApp real
 —todo cierto— pero el art. 13 del Decreto 1377 de 2013 pide la identificación.
 
-Verificado: `tsc`, lint, **113 pruebas** (87 pasan sin base, 26 saltadas),
-build con las cuatro páginas estáticas, y revisión en navegador real a 1280 y
-375 px.
+**Y la parte pura del adaptador de Wompi** (segunda mitad de la sesión).
+`src/payments/providers/wompi.ts` implementa el puerto completo: firma de
+integridad del enlace de Web Checkout, verificación del checksum del evento y
+mapeo de estados. La factory gana su `case "wompi"` y `.env.example` documenta
+las tres llaves.
+
+- **No está verificado contra el sandbox** — este entorno no alcanza
+  `sandbox.wompi.co` ni `docs.wompi.co` (el mismo egress restringido que ya
+  anotó el ADR 002). El esquema está implementado según lo publicado por Wompi
+  y probado contra vectores calculados con `sha256sum`, o sea **la
+  implementación es consistente, no que el esquema sea el vigente**. El modo de
+  falla es cerrado: un esquema equivocado rechaza el webhook, nunca acepta uno
+  falso. Correr una transacción con llaves `pub_test_` antes de prender
+  `PAYMENT_PROVIDER=wompi` en cualquier entorno.
+- **15 pruebas.** Los digests salen de `sha256sum`, no de la función bajo
+  prueba, así que un cambio en el orden de concatenación las rompe — un test
+  que rehace el hash con la misma función no atraparía eso. Cubren los ataques
+  que importan: estado APPROVED inyectado, monto alterado, timestamp movido,
+  propiedad firmada inexistente (si se firmara `undefined` cualquiera podría
+  reproducir el hash) y el cruce de secreto de integridad con el de eventos.
+- **En Web Checkout no hay id de transacción al crear el pago**, así que
+  `providerReference` es nuestra referencia (`orderNumber`) y el id de Wompi
+  queda en `rawPayload` para conciliación.
+- `amountCents` **ya es** `amount-in-cents`: no se multiplica. Hay una prueba
+  que lo fija, porque equivocarse ahí cobra cien veces.
+
+**Lo que falta del Bloque F, y por qué no se hizo acá:** la transición del
+pedido en `/api/webhooks/[provider]` sigue siendo el `TODO(sprint-4)`. Es
+código que muta stock dentro de una transacción y escribe al libro, y este
+contenedor no tiene base de datos —no hay demonio de Docker ni `DATABASE_URL`—
+así que no se podría ejecutar ni una vez. `stock.ts` se validó en su día con 8
+transacciones concurrentes contra una Postgres real; esta pieza merece lo
+mismo. Va en una sesión con base.
+
+Verificado: `tsc`, lint, **128 pruebas** (102 pasan sin base, 26 saltadas),
+build con las cuatro páginas legales estáticas, y revisión en navegador real a
+1280 y 375 px.
 
 ---
 
@@ -593,12 +627,22 @@ idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
 clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
 **margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
 
-### Bloque F — Pagos 🔄 pasarela comparada, decisión propuesta
+### Bloque F — Pagos 🔄 adaptador escrito, sin verificar contra el sandbox
 
-Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
-y el mock ya existen; el adaptador y el webhook con verificación de firma e idempotencia
-entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md` y, para la
-comparación completa, **`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
+Depende de la aprobación de la cuenta de comercio, que es calendario, no código. Ver
+`docs/decisions/001-payment-provider.md` y, para la comparación completa,
+**`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
+
+**Estado al 11 de agosto de 2026:**
+
+| Pieza                                   | Estado                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Puerto `PaymentProvider` + `MockProvider` | ✅ desde Fase 0                                                                                              |
+| Adaptador Wompi (firma, checksum, estados) | 🔄 escrito y con 15 pruebas, **sin correr contra el sandbox** — ver §3                                       |
+| `case "wompi"` en la factory + `.env.example` | ✅                                                                                                          |
+| Transición del pedido en el webhook     | ⬜ sigue siendo el `TODO(sprint-4)`. Muta stock y escribe al libro: necesita una sesión con base de datos    |
+| Cuenta de comercio                       | ⬜ lista para radicar en cuanto se llene `RESPONSABLE` y se despliegue                                       |
+| Descriptor `SECRETO BTQ`                 | ⬜ se confirma con la pasarela en el onboarding                                                              |
 
 **Lo que cambió (agosto 2026):** se compararon PayU y Wompi en precio, liquidación,
 mezcla de medios de pago y costo de integración. Resumen:
