@@ -1,11 +1,18 @@
 import { faInstagram, faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import Link from "next/link";
 
 import { INSTAGRAM_URL, whatsappHref } from "@/lib/contact";
+import { LEGAL_PAGES } from "@/lib/legal";
 
 // Footer vino: wordmark en oro + slogan a la izquierda, links marfil a la
 // derecha. La nota de vista previa es requisito de la Fase 0 — el cliente
 // aprueba un diseño con fotografía pendiente y debe saberlo.
+//
+// Las cuatro páginas legales salen de LEGAL_PAGES y no de una lista escrita a
+// mano: son alcanzables desde cualquier página del sitio, que es requisito del
+// onboarding de la pasarela (el análisis de riesgo revisa la tienda en vivo,
+// docs/decisions/002-pasarela-wompi-vs-payu.md).
 //
 // Iconos: los glifos de marca vienen de Font Awesome Brands (rellenos — un
 // logo no se redibuja en outline; excepción a la regla de la guía, registrada
@@ -49,14 +56,23 @@ export function SiteFooter() {
               />
               WhatsApp
             </a>
-            <a href="#" className="text-marfil hover:text-oro">
-              Envíos y garantía
-            </a>
-            <a href="#" className="text-marfil hover:text-oro">
-              Privacidad
-            </a>
           </nav>
         </div>
+
+        <nav
+          aria-label="Información legal"
+          className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm"
+        >
+          {LEGAL_PAGES.map((page) => (
+            <Link
+              key={page.slug}
+              href={page.href}
+              className="text-marfil transition-colors duration-150 hover:text-oro"
+            >
+              {page.footerLabel}
+            </Link>
+          ))}
+        </nav>
         <p className="mt-8 border-t border-marfil/15 pt-4 font-mono text-xs opacity-60">
           Vista previa de diseño — la fotografía de producto es provisional y se
           reemplaza con las fotos reales sobre fondo arena.
