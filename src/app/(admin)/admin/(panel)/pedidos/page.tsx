@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { OrderStatusBadge } from "@/features/orders/components/OrderStatusBadge";
-import { countByStatus, listOrders, ORDER_PAGE_SIZE } from "@/features/orders/queries";
+import {
+  countByStatus,
+  listOrders,
+  ORDER_PAGE_SIZE,
+} from "@/features/orders/queries";
 import { STATUS_LABEL } from "@/features/orders/transitions";
 import { OrderStatus } from "@/generated/prisma/enums";
 import { formatCOP } from "@/lib/money";
@@ -96,9 +100,7 @@ export default async function PedidosPage({
                     {" · "}
                     {order._count.items} artículo
                     {order._count.items === 1 ? "" : "s"}
-                    {order.payments.some(
-                      (p) => p.method === "CASH_ON_DELIVERY",
-                    )
+                    {order.payments.some((p) => p.method === "CASH_ON_DELIVERY")
                       ? " · contra entrega"
                       : ""}
                   </span>

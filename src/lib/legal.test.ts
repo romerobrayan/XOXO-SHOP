@@ -31,6 +31,21 @@ const EMPTY: Responsable = {
   correo: "",
 };
 
+/**
+ * La forma que realmente va a producción: identificada, pero SIN dirección.
+ * La tienda es virtual y la única dirección existente es la vivienda del
+ * titular, así que `LEGAL_DOMICILIO` queda vacío a propósito y la frase tiene
+ * que cerrar igual de bien con la ciudad sola.
+ */
+const SIN_DOMICILIO: Responsable = {
+  nombreComercial: "SECRETO · antes XOXO",
+  razonSocial: "Nombre Apellido",
+  identificacion: "900123456-7",
+  domicilio: "",
+  ciudad: "Medellín, Antioquia, Colombia",
+  correo: "hola@ejemplo.co",
+};
+
 describe("LEGAL_PAGES", () => {
   it("declara las cuatro páginas que exige el onboarding de la pasarela", () => {
     expect(LEGAL_PAGES.map((p) => p.slug)).toEqual([
@@ -90,8 +105,14 @@ describe("responsableLinea", () => {
     );
   });
 
+  it("identifica con ciudad sola cuando no hay dirección publicable", () => {
+    expect(responsableLinea(SIN_DOMICILIO)).toBe(
+      "SECRETO · antes XOXO (Nombre Apellido, NIT 900123456-7), con domicilio en Medellín, Antioquia, Colombia",
+    );
+  });
+
   it("nunca deja paréntesis vacíos, comas colgando ni dobles espacios", () => {
-    for (const responsable of [FILLED, EMPTY]) {
+    for (const responsable of [FILLED, EMPTY, SIN_DOMICILIO]) {
       const linea = responsableLinea(responsable);
       expect(linea).not.toMatch(/\(\s*\)/);
       expect(linea).not.toMatch(/,\s*,/);

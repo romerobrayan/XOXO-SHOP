@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { LegalArticle } from "@/components/site/LegalArticle";
 import { WHATSAPP_DISPLAY, whatsappHref } from "@/lib/contact";
-import { legalPage, responsableLinea } from "@/lib/legal";
+import { legalPage, RESPONSABLE, responsableLinea } from "@/lib/legal";
 
 const page = legalPage("privacidad");
 
@@ -28,7 +28,8 @@ export default function PrivacidadPage() {
       <h2>Quién responde por tus datos</h2>
       <p>
         El responsable del tratamiento de tus datos personales es{" "}
-        {responsableLinea()}. Puedes escribirnos por{" "}
+        {responsableLinea()}. Nuestros canales de atención para cualquier
+        solicitud sobre esta política son{" "}
         <a
           href={whatsappHref(
             "Hola, tengo una solicitud sobre mis datos personales",
@@ -38,8 +39,13 @@ export default function PrivacidadPage() {
         >
           WhatsApp al {WHATSAPP_DISPLAY}
         </a>
-        , que es nuestro canal de atención para cualquier solicitud sobre esta
-        política.
+        {RESPONSABLE.correo ? (
+          <>
+            {" y el correo "}
+            <a href={`mailto:${RESPONSABLE.correo}`}>{RESPONSABLE.correo}</a>
+          </>
+        ) : null}
+        .
       </p>
 
       <h2>Qué datos guardamos</h2>

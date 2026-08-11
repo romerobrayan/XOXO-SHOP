@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { LegalArticle } from "@/components/site/LegalArticle";
 import { WHATSAPP_DISPLAY, whatsappHref } from "@/lib/contact";
-import { legalPage, responsableLinea } from "@/lib/legal";
+import { legalPage, RESPONSABLE, responsableLinea } from "@/lib/legal";
 
 const page = legalPage("terminos");
 
@@ -15,6 +15,12 @@ export const metadata: Metadata = {
 // Términos y condiciones de venta. Describen la operación tal como funciona
 // hoy — contra entrega en Medellín, pago en línea y coordinación por WhatsApp —
 // y no prometen medios de pago que todavía no existen.
+//
+// Sobre el IVA: el precio se describe como final y NO se afirma que incluya
+// IVA. El titular figura en el RUT con la responsabilidad 49, "No responsable
+// de IVA", así que decir "incluye IVA" afirmaría un estatus tributario que no
+// tiene. "Precio final, solo se suma el envío" es cierto hoy y sigue siendo
+// cierto si más adelante pasa a responsable — no hay que volver a tocarlo.
 export default function TerminosPage() {
   return (
     <LegalArticle
@@ -40,9 +46,11 @@ export default function TerminosPage() {
       <h2>Productos, precios e impuestos</h2>
       <ul>
         <li>
-          Todos los precios están en <strong>pesos colombianos (COP)</strong> e{" "}
-          <strong>incluyen el IVA</strong>. Lo único que se suma aparte es el
-          costo de envío, que ves en el resumen antes de confirmar.
+          Todos los precios están en <strong>pesos colombianos (COP)</strong> y
+          son <strong>finales</strong>: lo que ves es lo que pagas por el
+          producto. Lo único que se suma aparte es el costo de envío, que ves en
+          el resumen antes de confirmar. No aparecen impuestos ni recargos en el
+          último paso.
         </li>
         <li>
           Las fotografías y descripciones buscan ser fieles al producto. Las
@@ -165,8 +173,14 @@ export default function TerminosPage() {
           rel="noreferrer"
         >
           WhatsApp al {WHATSAPP_DISPLAY}
-        </a>{" "}
-        con tu número de pedido. Si no quedas conforme con nuestra respuesta,
+        </a>
+        {RESPONSABLE.correo ? (
+          <>
+            {" o al correo "}
+            <a href={`mailto:${RESPONSABLE.correo}`}>{RESPONSABLE.correo}</a>
+          </>
+        ) : null}
+        , con tu número de pedido. Si no quedas conforme con nuestra respuesta,
         puedes acudir a la Superintendencia de Industria y Comercio, que es la
         autoridad de protección al consumidor en Colombia.
       </p>

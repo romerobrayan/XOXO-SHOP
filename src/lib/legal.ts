@@ -4,34 +4,54 @@
 // or a corrected identity never has to be chased across files.
 //
 // ─────────────────────────────────────────────────────────────────────────
-// PENDIENTE ANTES DE RADICAR LA PASARELA — completar `RESPONSABLE`.
-// La Ley 1581 de 2012 (art. 13 del Decreto 1377 de 2013) exige que la
-// política identifique al responsable del tratamiento con su identificación
-// y un canal de atención. Hoy la política se sostiene sobre el nombre
-// comercial, la ciudad y el WhatsApp real del negocio — todo cierto, pero
-// incompleto. Falta la razón social o el nombre de la persona natural, el
-// NIT o cédula, y el domicilio. Cuando la clienta los entregue van aquí y
-// las cuatro páginas los recogen solas.
+// LOS DATOS DEL RESPONSABLE VIENEN DEL ENTORNO, NO DEL REPOSITORIO.
+//
+// Este repositorio es público. El nombre y el NIT de una persona natural
+// puestos en un commit quedan en el historial de git para siempre: los forks,
+// la caché y la API de GitHub hacen que borrarlos después no sirva de nada.
+// La página publicada sí los muestra —el art. 13 del Decreto 1377 de 2013 y
+// el art. 50 de la Ley 1480 de 2011 los exigen— pero salen de variables de
+// entorno cargadas en Vercel, así que corregirlos es editar una variable y no
+// dejan rastro acá.
+//
+// Se cargan en Vercel (Production y Preview) y en el `.env` local:
+//   LEGAL_RAZON_SOCIAL   nombre de la persona natural o razón social
+//   LEGAL_NIT            NIT con dígito de verificación
+//   LEGAL_CORREO         correo de atención de habeas data
+//   LEGAL_DOMICILIO      dirección de notificación — hoy vacío a propósito
+//
+// `LEGAL_DOMICILIO` queda deliberadamente sin valor: la tienda es virtual y
+// la única dirección existente es la vivienda del titular. Publicarla en el
+// sitio de una tienda de esta categoría es una exposición real, así que la
+// identificación se sostiene sobre ciudad + canales de atención, y la
+// dirección completa vive en el RUT y en el registro de la pasarela. Si más
+// adelante hay una dirección de notificación aparte, se llena la variable y
+// las cuatro páginas la recogen solas.
+//
+// Si faltan, las páginas no muestran un hueco: `responsableLinea()` degrada a
+// nombre comercial + ciudad. Eso hace que un despliegue sin las variables se
+// vea bien y esté incompleto, así que verificarlas es parte de desplegar.
 // ─────────────────────────────────────────────────────────────────────────
 
-export const RESPONSABLE = {
-  /** Nombre comercial. Este sí es definitivo. */
+export type Responsable = {
+  nombreComercial: string;
+  razonSocial: string;
+  identificacion: string;
+  domicilio: string;
+  ciudad: string;
+  correo: string;
+};
+
+export const RESPONSABLE: Responsable = {
+  /** Nombre comercial. Público por definición, así que vive en el repo. */
   nombreComercial: "SECRETO · antes XOXO",
-  /** Razón social o nombre de la persona natural que registra el comercio. */
-  razonSocial: "",
-  /** NIT o cédula de quien registra. */
-  identificacion: "",
-  /** Domicilio para notificaciones. */
-  domicilio: "",
-  /** Ciudad de operación — confirmada. */
-  ciudad: "Medellín, Colombia",
-  /**
-   * Correo de atención. Hoy no existe correo comercial (deuda abierta en
-   * docs/ESTADO-Y-SIGUIENTE-SESION.md); mientras tanto el canal de habeas
-   * data es el WhatsApp de src/lib/contact.ts, que sí está operando.
-   */
-  correo: "",
-} as const;
+  razonSocial: process.env.LEGAL_RAZON_SOCIAL ?? "",
+  identificacion: process.env.LEGAL_NIT ?? "",
+  domicilio: process.env.LEGAL_DOMICILIO ?? "",
+  /** Ciudad de operación — confirmada y no es dato personal. */
+  ciudad: "Medellín, Antioquia, Colombia",
+  correo: process.env.LEGAL_CORREO ?? "",
+};
 
 /** Fecha de la última revisión del contenido legal. Actualizar al editarlo. */
 export const LEGAL_UPDATED = "11 de agosto de 2026";
@@ -83,20 +103,11 @@ export function legalPage(slug: LegalSlug) {
   return page;
 }
 
-export type Responsable = {
-  nombreComercial: string;
-  razonSocial: string;
-  identificacion: string;
-  domicilio: string;
-  ciudad: string;
-  correo: string;
-};
-
 /**
  * Cómo se identifica el responsable en el cuerpo de las páginas. Devuelve
  * una frase completa con los datos que existan hoy — nunca un hueco visible
  * en una página publicada. Recibe el responsable por parámetro para que la
- * prueba pueda ejercitar el estado completo sin esperar a la clienta.
+ * prueba pueda ejercitar cualquier combinación sin depender del entorno.
  */
 export function responsableLinea(
   responsable: Responsable = RESPONSABLE,
