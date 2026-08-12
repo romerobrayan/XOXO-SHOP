@@ -14,7 +14,10 @@ export interface PaymentProvider {
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
 
   /** Verifies webhook authenticity. Every gateway signs differently. */
-  verifyWebhook(rawBody: string, headers: Headers): Promise<WebhookEvent | null>;
+  verifyWebhook(
+    rawBody: string,
+    headers: Headers,
+  ): Promise<WebhookEvent | null>;
 
   /** Normalizes a provider status into our own PaymentStatus enum. */
   mapStatus(providerStatus: string): PaymentStatus;
