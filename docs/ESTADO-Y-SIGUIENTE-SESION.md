@@ -4,12 +4,18 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 6 de agosto de 2026 — sesión "Bloque D desplegado":
-el panel admin completo (pedidos + productos) quedó **mergeado a `main` y
-corriendo en producción**, con la migración `admin_auth` aplicada en Neon, las
-variables de better-auth cargadas en Vercel y la cuenta admin real creada. El
-login contra producción está verificado de punta a punta. También: a partir de
-ahora el trabajo va a la rama **`develop`** y de ahí a `main`.
+**Última actualización:** 11 de agosto de 2026 — sesión "Páginas legales":
+las cuatro páginas legales existen y están enlazadas desde el footer de todo el
+sitio. Era **bloqueante del onboarding de la pasarela**, no deuda cosmética: el
+análisis de riesgo revisa la tienda en vivo. Falta un solo dato para radicar —
+la identificación del responsable (`src/lib/legal.ts`).
+
+Antes — 6 de agosto de 2026, sesión "Bloque D desplegado": el panel admin
+completo (pedidos + productos) quedó **mergeado a `main` y corriendo en
+producción**, con la migración `admin_auth` aplicada en Neon, las variables de
+better-auth cargadas en Vercel y la cuenta admin real creada. El login contra
+producción está verificado de punta a punta. También: a partir de ahora el
+trabajo va a la rama **`develop`** y de ahí a `main`.
 
 ---
 
@@ -64,6 +70,93 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: sacar las páginas legales de la ruta crítica de la pasarela.** La
+clienta ya tiene sus documentos listos para radicar en Wompi, y el ADR 002 deja
+claro que el análisis de riesgo **revisa la tienda en vivo**: radicar contra una
+tienda con dos links muertos en el footer y sin política de datos es regalar
+semanas.
+
+- **Cuatro páginas nuevas** bajo `/legal/`: tratamiento de datos, términos y
+  condiciones, envíos y empaque discreto, y devoluciones/garantía/retracto.
+  Enlazadas desde el footer de todas las páginas de la tienda y entre ellas.
+- **Registro único en `src/lib/legal.ts`** — el footer, la navegación entre
+  legales y las páginas mismas leen de ahí. Renombrar una ruta o corregir la
+  identificación del responsable es un solo archivo.
+- **La política de datos no es una plantilla.** El artículo 5 de la Ley 1581 de
+  2012 clasifica como **sensibles** los datos relativos a la vida sexual, y en
+  esta categoría el historial de compras revela justamente eso. La página lo
+  dice, dice que el titular **no está obligado** a autorizar su tratamiento, y
+  enumera lo que no hacemos con él (ni perfiles, ni publicidad, ni cesión).
+  También declara la transferencia internacional (art. 26) — Neon y Vercel están
+  en Estados Unidos — y los plazos de consultas (10 + 5 días hábiles) y reclamos
+  (15 + 8).
+- **El retracto quedó dicho con precisión**, que es la regla de `CLAUDE.md`. El
+  artículo 47 de la Ley 1480 de 2011 da 5 días hábiles en venta a distancia,
+  **pero el mismo artículo excluye los bienes de uso personal y los que por su
+  naturaleza no pueden devolverse** — que es lo que vende esta tienda. La página
+  lo explica por el sello de higiene, y aclara que la excepción **no toca la
+  garantía legal** (1 año para productos nuevos cuando el fabricante no anuncia
+  plazo, arts. 7 y 8). Las excepciones se citan en palabras y no por numeral a
+  propósito: un numeral equivocado en una página publicada es peor que no
+  numerarla. Se incluye la reversión del pago (art. 51), que aplica justo al
+  medio de pago que la pasarela va a habilitar.
+- **La tarifa de envío sale de `SHIPPING_CENTS`**, la misma constante que cobra
+  el checkout, así que la página publicada y el cobro real no pueden divergir.
+  Cuando la clienta confirme su tarifa, cambia una constante y cambian las dos.
+- `WHATSAPP_DISPLAY` en `src/lib/contact.ts` — el número como canal de atención
+  de habeas data tiene que leerse como un teléfono, no como doce dígitos.
+- 9 pruebas nuevas en `src/lib/legal.test.ts`. La que importa: la
+  identificación del responsable **nunca sale con un hueco visible** —
+  paréntesis vacíos, comas colgando o preposiciones sueltas— con los campos que
+  todavía no tenemos.
+
+**Lo único que falta para radicar:** razón social o nombre de la persona
+natural, NIT o cédula y domicilio, en `RESPONSABLE` de `src/lib/legal.ts`. Hoy
+la política se sostiene sobre el nombre comercial, la ciudad y el WhatsApp real
+—todo cierto— pero el art. 13 del Decreto 1377 de 2013 pide la identificación.
+
+**Y la parte pura del adaptador de Wompi** (segunda mitad de la sesión).
+`src/payments/providers/wompi.ts` implementa el puerto completo: firma de
+integridad del enlace de Web Checkout, verificación del checksum del evento y
+mapeo de estados. La factory gana su `case "wompi"` y `.env.example` documenta
+las tres llaves.
+
+- **No está verificado contra el sandbox** — este entorno no alcanza
+  `sandbox.wompi.co` ni `docs.wompi.co` (el mismo egress restringido que ya
+  anotó el ADR 002). El esquema está implementado según lo publicado por Wompi
+  y probado contra vectores calculados con `sha256sum`, o sea **la
+  implementación es consistente, no que el esquema sea el vigente**. El modo de
+  falla es cerrado: un esquema equivocado rechaza el webhook, nunca acepta uno
+  falso. Correr una transacción con llaves `pub_test_` antes de prender
+  `PAYMENT_PROVIDER=wompi` en cualquier entorno.
+- **15 pruebas.** Los digests salen de `sha256sum`, no de la función bajo
+  prueba, así que un cambio en el orden de concatenación las rompe — un test
+  que rehace el hash con la misma función no atraparía eso. Cubren los ataques
+  que importan: estado APPROVED inyectado, monto alterado, timestamp movido,
+  propiedad firmada inexistente (si se firmara `undefined` cualquiera podría
+  reproducir el hash) y el cruce de secreto de integridad con el de eventos.
+- **En Web Checkout no hay id de transacción al crear el pago**, así que
+  `providerReference` es nuestra referencia (`orderNumber`) y el id de Wompi
+  queda en `rawPayload` para conciliación.
+- `amountCents` **ya es** `amount-in-cents`: no se multiplica. Hay una prueba
+  que lo fija, porque equivocarse ahí cobra cien veces.
+
+**Lo que falta del Bloque F, y por qué no se hizo acá:** la transición del
+pedido en `/api/webhooks/[provider]` sigue siendo el `TODO(sprint-4)`. Es
+código que muta stock dentro de una transacción y escribe al libro, y este
+contenedor no tiene base de datos —no hay demonio de Docker ni `DATABASE_URL`—
+así que no se podría ejecutar ni una vez. `stock.ts` se validó en su día con 8
+transacciones concurrentes contra una Postgres real; esta pieza merece lo
+mismo. Va en una sesión con base.
+
+Verificado: `tsc`, lint, **128 pruebas** (102 pasan sin base, 26 saltadas),
+build con las cuatro páginas legales estáticas, y revisión en navegador real a
+1280 y 375 px.
+
+---
+
+### Sesión anterior — 6 de agosto de 2026 — Bloque D
 
 **Objetivo: Bloque D — construirlo, verificarlo y dejarlo corriendo en
 producción.** El detalle de lo construido está en el Bloque D de §4; esta
@@ -534,12 +627,22 @@ idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
 clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
 **margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
 
-### Bloque F — Pagos 🔄 pasarela comparada, decisión propuesta
+### Bloque F — Pagos 🔄 adaptador escrito, sin verificar contra el sandbox
 
-Depende de la aprobación de la cuenta de comercio, que es calendario, no código. El puerto
-y el mock ya existen; el adaptador y el webhook con verificación de firma e idempotencia
-entran cuando haya cuenta. Ver `docs/decisions/001-payment-provider.md` y, para la
-comparación completa, **`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
+Depende de la aprobación de la cuenta de comercio, que es calendario, no código. Ver
+`docs/decisions/001-payment-provider.md` y, para la comparación completa,
+**`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
+
+**Estado al 11 de agosto de 2026:**
+
+| Pieza                                   | Estado                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Puerto `PaymentProvider` + `MockProvider` | ✅ desde Fase 0                                                                                              |
+| Adaptador Wompi (firma, checksum, estados) | 🔄 escrito y con 15 pruebas, **sin correr contra el sandbox** — ver §3                                       |
+| `case "wompi"` en la factory + `.env.example` | ✅                                                                                                          |
+| Transición del pedido en el webhook     | ⬜ sigue siendo el `TODO(sprint-4)`. Muta stock y escribe al libro: necesita una sesión con base de datos    |
+| Cuenta de comercio                       | ⬜ lista para radicar en cuanto se llene `RESPONSABLE` y se despliegue                                       |
+| Descriptor `SECRETO BTQ`                 | ⬜ se confirma con la pasarela en el onboarding                                                              |
 
 **Lo que cambió (agosto 2026):** se compararon PayU y Wompi en precio, liquidación,
 mezcla de medios de pago y costo de integración. Resumen:
@@ -566,7 +669,15 @@ mezcla de medios de pago y costo de integración. Resumen:
 **Bloqueantes de onboarding que no son código** (detalle en el ADR 002): RUT, cédula,
 comprobante de domicilio, extractos; cuenta Bancolombia o Nequi a nombre de quien
 registra —si es persona natural, con más de 30 días y **el primer desembolso llega a
-los 30 días de la primera venta**—; y las **páginas legales publicadas y accesibles**.
+los 30 días de la primera venta**—; y las páginas legales publicadas y accesibles.
+
+**Estado al 11 de agosto de 2026:** la clienta ya tiene sus documentos listos, y
+las **páginas legales quedaron publicadas** — el bloqueante de nuestro lado se
+cerró. Falta llenar `RESPONSABLE` en `src/lib/legal.ts` (razón social o nombre,
+NIT o cédula, domicilio) y desplegar antes de radicar, porque el análisis de
+riesgo revisa la tienda en vivo. El descriptor `SECRETO BTQ` —que el checkout ya
+le anuncia al comprador y los términos publican— se confirma con la pasarela
+durante el onboarding.
 
 ### Bloque G — Arquitectura en la nube 🔄 en curso
 
@@ -610,9 +721,17 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
 | Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |
 | Enmienda de movimiento sin aprobar           | El escaparate del héroe y la entrada escalonada extienden el spec de movimiento del handoff (que solo define hovers de 150–200 ms). Valores en `globals.css` como `--motion-*`; se aprueban con la Fase 0 o se apagan quitando dos clases |
-| **Páginas legales inexistentes** ⚠️           | Subió de prioridad: no es deuda cosmética, es **bloqueante del onboarding de la pasarela** — el análisis de riesgo revisa la tienda en vivo. Faltan tratamiento de datos (Ley 1581/2012), términos y condiciones, envíos y devoluciones (ojo: el retracto de 5 días del Estatuto del Consumidor generalmente **excluye** productos de higiene personal e íntimos — decirlo con precisión). "Envíos y garantía" y "Privacidad" siguen en `href="#"`. Ver ADR 002 |
+| ~~Páginas legales inexistentes~~ ✅           | Saldada (2026-08-11): las cuatro existen bajo `/legal/` y están enlazadas desde el footer de todo el sitio. El retracto quedó dicho con precisión —el art. 47 de la Ley 1480 excluye los bienes de uso personal— sin tocar la garantía legal. Ver §3                                                                                     |
+| ~~Identificación del responsable~~ ✅         | Saldada: nombre y NIT salen de `LEGAL_RAZON_SOCIAL` y `LEGAL_NIT` en Vercel, no del repo — que es público. Verificado en el build: la página publica "SECRETO · antes XOXO (…, NIT …), con domicilio en Medellín, Antioquia, Colombia"                                                                                                 |
+| Variables legales sin guardarraíl             | Si `LEGAL_RAZON_SOCIAL` o `LEGAL_NIT` faltan, la página **no falla**: degrada a nombre comercial + ciudad. Un despliegue sin ellas se ve bien y está incompleto. Hoy se cubre con documentación; un chequeo en el build sería más honesto                                                                                              |
+| Dirección de notificación inexistente         | `LEGAL_DOMICILIO` va vacío a propósito: la tienda es virtual y la única dirección es la vivienda del titular. La identificación se sostiene sobre ciudad + canales. Si la pasarela o un requerimiento exigen dirección publicada, la salida es una oficina virtual o la del contador                                                    |
+| ~~Correo comercial inexistente~~ ✅           | Saldada: `SUPPORT_EMAIL` en `src/lib/contact.ts` (`soporte.secretobtq@gmail.com`), visible en el footer y publicado como canal de habeas data en la política de datos y en los términos                                                                                                                                               |
+| Facturación siendo no responsable de IVA      | El RUT trae la responsabilidad **49 — No responsable de IVA**, así que los términos ya no afirman que el precio incluya IVA. Falta confirmar con el contador si factura electrónicamente o con documento equivalente; puede cambiar una línea de `/legal/terminos`                                                                     |
+| Tarifa de envío publicada = supuesto          | `/legal/envios` publica `SHIPPING_CENTS` ($12.000), que sigue siendo el supuesto del handoff. Página y cobro no pueden divergir —leen la misma constante— pero el número sigue esperando a la clienta (§6)                                                                                                                            |
+| Remitente del empaque sin definir             | La política de envíos promete un remitente neutro que no menciona la tienda ni la categoría. Es cierto y es lo decidido; la cadena exacta impresa en la guía la elige la clienta (§6)                                                                                                                                                 |
+| Spec §7 y §9 desfasados                       | El plan de entrega dice que las Fases 2 y 4 "no empezaron"; Bloques C y D están en producción desde el 6 de agosto. Solo documentación, pero es el documento que alguien nuevo lee primero                                                                                                                                            |
 | `mediaForSelection` sin cablear              | Fotos por color elegido: implementado y testeado, pero conectar la galería al picker exige reestructurar el PDP en isla cliente (hoy `Gallery` y `PurchasePanel` son hermanos server). Evaluado y diferido                                |
-| Correo comercial inexistente                 | No hay dirección de email del negocio en ningún punto de contacto; el icono Mail de la asesoría es decorativo. Cuando exista: `src/lib/contact.ts` + footer                                                                               |
+| Icono Mail de la asesoría sin destino        | Ya existe correo del negocio y está en el footer, pero el bloque de asesoría de la home sigue con el icono decorativo y su formulario de newsletter. Revisarlo cuando se defina si el newsletter se conecta a algo                        |
 | `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente                                                                                                                                                               |
 | Lighthouse sin medir                         | El criterio de éxito del spec (≥ 90 móvil) no se ha verificado; medirlo con imágenes reales, no con placeholders                                                                                                                          |
 | Descriptor de pago sin acordar               | `SECRETO BTQ` es la propuesta del handoff; hay que confirmarla con la pasarela en el onboarding                                                                                                                                           |
