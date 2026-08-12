@@ -1,8 +1,9 @@
 import { faInstagram, faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Mail } from "lucide-react";
 import Link from "next/link";
 
-import { INSTAGRAM_URL, whatsappHref } from "@/lib/contact";
+import { INSTAGRAM_URL, SUPPORT_EMAIL, whatsappHref } from "@/lib/contact";
 import { LEGAL_PAGES } from "@/lib/legal";
 
 // Footer vino: wordmark en oro + slogan a la izquierda, links marfil a la
@@ -55,6 +56,13 @@ export function SiteFooter() {
                 className="size-4"
               />
               WhatsApp
+            </a>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="inline-flex items-center gap-1.5 text-marfil hover:text-oro"
+            >
+              <Mail aria-hidden="true" strokeWidth={1.5} className="size-4" />
+              Correo
             </a>
           </nav>
         </div>

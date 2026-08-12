@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL } from "@/lib/contact";
+
 // Single source for the legal pages: who the pages link to, when they were
 // last revised, and the identity of the data controller. The footer, the
 // legal nav and the pages themselves all read from here so a renamed route
@@ -17,8 +19,11 @@
 // Se cargan en Vercel (Production y Preview) y en el `.env` local:
 //   LEGAL_RAZON_SOCIAL   nombre de la persona natural o razón social
 //   LEGAL_NIT            NIT con dígito de verificación
-//   LEGAL_CORREO         correo de atención de habeas data
 //   LEGAL_DOMICILIO      dirección de notificación — hoy vacío a propósito
+//
+// El correo NO está acá: `SUPPORT_EMAIL` en src/lib/contact.ts es una
+// dirección pública del negocio, no un dato personal del titular, así que
+// vive con el WhatsApp y el Instagram.
 //
 // `LEGAL_DOMICILIO` queda deliberadamente sin valor: la tienda es virtual y
 // la única dirección existente es la vivienda del titular. Publicarla en el
@@ -50,7 +55,7 @@ export const RESPONSABLE: Responsable = {
   domicilio: process.env.LEGAL_DOMICILIO ?? "",
   /** Ciudad de operación — confirmada y no es dato personal. */
   ciudad: "Medellín, Antioquia, Colombia",
-  correo: process.env.LEGAL_CORREO ?? "",
+  correo: SUPPORT_EMAIL,
 };
 
 /** Fecha de la última revisión del contenido legal. Actualizar al editarlo. */
