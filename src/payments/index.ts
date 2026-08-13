@@ -13,9 +13,9 @@ export function getPaymentProvider(): PaymentProvider {
     case "mock":
       return new MockProvider();
     case "wompi":
-      // El adaptador existe pero NO está verificado contra el sandbox: correr
-      // una transacción de prueba con llaves `pub_test_` antes de prender esto
-      // en cualquier entorno. Ver la cabecera de providers/wompi.ts.
+      // Verificado contra el sandbox con llaves pub_test_ (2026-08-13); antes
+      // de encenderlo en un entorno desplegado hay que registrar la URL de
+      // eventos en el panel de Wompi. Ver la cabecera de providers/wompi.ts.
       return new WompiProvider(wompiConfigFromEnv());
     // case "payu": — fallback documentado, entra si Wompi rechaza la categoría
     default:

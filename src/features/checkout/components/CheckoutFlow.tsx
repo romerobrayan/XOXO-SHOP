@@ -251,6 +251,9 @@ export function CheckoutFlow() {
     items: CartItem[];
     orderNumber: string;
   } | null>(null);
+  // True from "the server handed us a payment link" until the browser
+  // actually leaves — keeps the button disabled while navigation happens.
+  const [redirigiendo, setRedirigiendo] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -260,6 +263,16 @@ export function CheckoutFlow() {
     onSuccess: ({ data }) => {
       if (!data) return;
       if (data.ok) {
+        if (data.checkoutUrl) {
+          // Online payment: the order exists and its stock is reserved, so
+          // the bag's job is done — leaving items in it would invite a second
+          // order for the same units. Confirmation happens on the return
+          // page, driven by the webhook, never by this redirect.
+          setRedirigiendo(true);
+          clear();
+          window.location.assign(data.checkoutUrl);
+          return;
+        }
         setConfirmado({ items: cartItems, orderNumber: data.orderNumber });
         clear();
       } else if (data.code === "DEMO_MODE") {
@@ -277,7 +290,7 @@ export function CheckoutFlow() {
       );
     },
   });
-  const enviando = accion.status === "executing";
+  const enviando = accion.status === "executing" || redirigiendo;
 
   const items = confirmado?.items ?? cartItems;
   const vacia = items.length === 0;
@@ -625,7 +638,11 @@ export function CheckoutFlow() {
                   disabled={enviando || vacia || conflictos !== null}
                   onClick={confirmar}
                 >
-                  {enviando ? "Confirmando…" : "Confirmar pedido"}
+                  {redirigiendo
+                    ? "Llevándote al pago…"
+                    : enviando
+                      ? "Confirmando…"
+                      : "Confirmar pedido"}
                 </Button>
               </div>
             </div>

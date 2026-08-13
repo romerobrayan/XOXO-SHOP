@@ -4,18 +4,20 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 11 de agosto de 2026 — sesión "Páginas legales":
-las cuatro páginas legales existen y están enlazadas desde el footer de todo el
-sitio. Era **bloqueante del onboarding de la pasarela**, no deuda cosmética: el
-análisis de riesgo revisa la tienda en vivo. Falta un solo dato para radicar —
-la identificación del responsable (`src/lib/legal.ts`).
+**Última actualización:** 13 de agosto de 2026 — sesión "Bloque F: pago en
+línea": el pago online funciona de punta a punta contra el **sandbox real de
+Wompi** (cuenta de prueba "SECRETO BTQ", ya creada por la clienta). El checkout
+arma el enlace firmado y redirige; el webhook, idempotente y probado bajo
+concurrencia, marca el pedido pagado **a través de la máquina de estados**; y
+la firma de integridad —el único pendiente del adaptador— quedó confirmada con
+transacciones reales (4242 aprobó, 4111 rechazó, reintento aprobó). Migración
+`payment_method_nullable` aplicada en Neon. Falta un paso que no es código:
+la **URL de eventos en el panel de Wompi** (ver Bloque F).
 
-Antes — 6 de agosto de 2026, sesión "Bloque D desplegado": el panel admin
-completo (pedidos + productos) quedó **mergeado a `main` y corriendo en
-producción**, con la migración `admin_auth` aplicada en Neon, las variables de
-better-auth cargadas en Vercel y la cuenta admin real creada. El login contra
-producción está verificado de punta a punta. También: a partir de ahora el
-trabajo va a la rama **`develop`** y de ahí a `main`.
+Antes — 11 de agosto de 2026, sesión "Páginas legales": las cuatro páginas
+legales existen y están enlazadas desde el footer de todo el sitio. Era
+bloqueante del onboarding de la pasarela. Falta un solo dato para radicar — la
+identificación del responsable (`src/lib/legal.ts`).
 
 ---
 
@@ -26,7 +28,7 @@ trabajo va a la rama **`develop`** y de ahí a `main`.
 | **0 — Diseño**              | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta                                                                 |
 | **1 — Catálogo**            | **En curso.** Esquema, migración, seed, pipeline de importación (`docs/IMPORT-PROVEEDORES.md`) **y CRUD del panel admin** listos. Falta la curaduría real de la clienta                               |
 | **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
-| **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
+| **3 — Pagos**               | **Implementada contra el sandbox (Bloque F).** Arranque + webhook idempotente + página de retorno, verificados con transacciones reales de prueba. Production sigue en `mock` hasta la aprobación del comercio; falta la URL de eventos en el panel |
 | **4 — Admin y lanzamiento** | **Bloque D completo y en producción.** El panel autentica con better-auth (migración en Neon, variables en Vercel, cuenta creada), gestiona pedidos con transiciones que escriben al libro, y tiene CRUD de productos con el sistema de opciones y ajuste de stock en dos toques |
 
 Lo que ya funciona de punta a punta: navegar el catálogo, filtrar por categoría y marca,
@@ -70,6 +72,94 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: Bloque F — que "Transferencia o tarjeta" cobre de verdad.** Todo
+lo que faltaba entre el adaptador puro de la sesión pasada y un pago que entra:
+el arranque, el webhook y la verificación contra el sandbox con las llaves
+`pub_test_` de la cuenta real de prueba.
+
+- **El arranque del pago.** `createOrder` con `paymentMethod=ONLINE` construye
+  el enlace firmado de Web Checkout, escribe la fila `Payment`
+  (`PENDING`, `method` **null** — el riel lo elige el comprador dentro de Wompi
+  y solo el evento lo sabe) y devuelve `checkoutUrl`; `CheckoutFlow` vacía la
+  bolsa y redirige. La referencia es el número de pedido, así que un reintento
+  con la misma `idempotencyKey` **re-deriva el mismo enlace byte a byte**
+  (upsert por `providerReference`, cero filas duplicadas). El proveedor se
+  construye antes de crear el pedido: un despliegue sin llaves falla antes de
+  reservar stock, no después.
+- **La reserva online con pasarela real dura 30 minutos** (la promesa que el
+  Bloque C dejó anotada), y el enlace lleva `expiration-time` firmado con el
+  **mismo instante**: pagar una reserva que el barrido ya liberó se vuelve
+  imposible del lado de Wompi, no solo del nuestro. Con el mock no hay
+  redirect real y la ventana sigue en 72 h (asesora por WhatsApp).
+- **El webhook dejó de ser un TODO.** La ruta verifica la firma (adaptador) y
+  delega en `applyPaymentEvent` (`src/features/orders/payment-events.ts`):
+  con `APPROVED`, el pedido pasa `PENDING→PAID` **a través de la máquina de
+  estados**, vía un ejecutor nuevo y compartido
+  (`src/features/orders/apply-transition.ts`) que también usa el panel — CAS
+  sobre el estado visto, timestamps y efecto de inventario en un solo lugar.
+  **El webhook no llama `commitSale`, deliberadamente:** la máquina declara
+  `PENDING→PAID` con efecto `none`, y `transitions.test.ts` fija la invariante
+  *"consumes the reservation only when shipping"* — el stock se compromete
+  **una sola vez**, en `PROCESSING→SHIPPED`, por el camino del panel ya
+  probado. Un commit en el webhook rompería "Marcar enviado" (doble commit) y
+  "Cancelar" (liberar sin reserva) para todo pedido pagado en línea.
+- **Idempotencia sin tabla de dedupe: dos CAS.** `APPROVED` es terminal en
+  `Payment` (toda escritura va guardada por `status != APPROVED`), y el flip
+  del pedido es el mismo `updateMany` condicional del panel y el barrido.
+  Eventos duplicados, concurrentes o fuera de orden actualizan cero filas y
+  se van. El caso feo — plata que llega cuando el barrido ya canceló — se
+  registra en el `Payment` (la plata se movió), **no toca stock** y deja log
+  fuerte para conciliación humana.
+- **Página de retorno `/checkout/gracias`** (el `redirect-url` del enlace):
+  confirmando (se refresca sola mientras llega el evento), confirmado,
+  rechazado —con "Reintentar el pago", que re-deriva el mismo enlace—,
+  expirado, pago-tras-expirar y registrado (mock). Muestra número de pedido y
+  total, nunca un dato personal: el número es la capacidad, como al citarlo
+  por WhatsApp. Wompi documenta que el redirect no confirma nada; acá solo se
+  lee lo que el webhook haya escrito.
+- **Migración `payment_method_nullable`** (`method` de `Payment` admite null
+  hasta que el evento diga el riel): generada contra la local, **aplicada en
+  Neon** con `migrate deploy`. El panel muestra "En línea · riel por
+  confirmar" mientras tanto, y el riel real (CARD/NEQUI/PSE…) lo escribe el
+  evento.
+- **142 pruebas, todas corriendo contra Postgres local** (las 26 que se
+  saltaban sin base, incluidas). Nuevas: 8 de `payment-events` — 8 entregas
+  concurrentes del mismo evento producen **un solo** `order_paid`; el flujo
+  completo webhook→preparar→enviar descuenta stock **exactamente una vez** y
+  el libro reconcilia; `DECLINED` tardío no regresa un pago aprobado; plata
+  tras cancelación no toca el libro — 3 del arranque online en
+  `actions.test.ts` (fila escrita, enlace idéntico en reintento, contra
+  entrega intacta) y 2 del adaptador (firma con expiración contra digest de
+  `sha256sum`, extracción del riel). e2e: 5/5, con el pago online llegando
+  hasta el redirect con el enlace firmado completo.
+- **Sandbox verificado con la cuenta real de prueba ("SECRETO BTQ" — ya
+  existe, con el descriptor propuesto).** `checkout.wompi.co` devuelve 403 de
+  CloudFront a los navegadores de esta máquina (WAF de Wompi; `curl` sí
+  pasa), así que la verificación fue por la **API pública del sandbox — las
+  mismas tres llamadas que el widget hace por dentro**, donde una firma
+  equivocada muere con 422: transacción creada con la firma exacta del
+  adaptador (con `expiration-time` incluido en la cadena), 4242 aprobó, 4111
+  rechazó, y el reintento sobre la misma referencia aprobó. El webhook local
+  procesó eventos construidos con esas transacciones reales y firmados con el
+  **secreto de eventos real**: aprobado → `PAID` con riel `CARD` y payload
+  guardado; duplicado → no-op; `DECLINED` fuera de orden → no regresa nada.
+- Operativo: la cabecera de `wompi.ts`, la factory y `.env.example` ahora
+  dicen la verdad nueva (verificado 2026-08-13, y qué falta). La base local
+  quedó en estado demo (`prisma db seed` tras las compras de prueba).
+
+**Lo que queda del Bloque F no es código nuestro:** registrar la **URL de
+eventos** en el panel de Wompi (Desarrollo → Programadores → URL de Eventos,
+modo prueba) apuntando a un despliegue público
+(`https://<host>/api/webhooks/wompi`) para que Wompi entregue él mismo — el
+formato del evento y el checksum ya están probados con el secreto real. Para
+probarlo en un preview de Vercel: llaves `pub_test_` y
+`PAYMENT_PROVIDER=wompi` **solo en Preview**. Production sigue en `mock` hasta
+la aprobación del comercio, con llaves `prod_` y su URL de eventos propia.
+
+---
+
+### Sesión anterior — 11 de agosto de 2026 — Páginas legales y adaptador Wompi
 
 **Objetivo: sacar las páginas legales de la ruta crítica de la pasarela.** La
 clienta ya tiene sus documentos listos para radicar en Wompi, y el ADR 002 deja
@@ -627,21 +717,23 @@ idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
 clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
 **margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
 
-### Bloque F — Pagos 🔄 adaptador escrito, sin verificar contra el sandbox
+### Bloque F — Pagos 🔄 verificado contra el sandbox; Production espera el comercio
 
-Depende de la aprobación de la cuenta de comercio, que es calendario, no código. Ver
+La aprobación de la cuenta de comercio sigue siendo calendario, no código. Ver
 `docs/decisions/001-payment-provider.md` y, para la comparación completa,
 **`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
 
-**Estado al 11 de agosto de 2026:**
+**Estado al 13 de agosto de 2026:**
 
 | Pieza                                   | Estado                                                                                                       |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Puerto `PaymentProvider` + `MockProvider` | ✅ desde Fase 0                                                                                              |
-| Adaptador Wompi (firma, checksum, estados) | 🔄 escrito y con 15 pruebas, **sin correr contra el sandbox** — ver §3                                       |
-| `case "wompi"` en la factory + `.env.example` | ✅                                                                                                          |
-| Transición del pedido en el webhook     | ⬜ sigue siendo el `TODO(sprint-4)`. Muta stock y escribe al libro: necesita una sesión con base de datos    |
-| Cuenta de comercio                       | ⬜ lista para radicar en cuanto se llene `RESPONSABLE` y se despliegue                                       |
+| Adaptador Wompi (firma, checksum, estados) | ✅ **verificado contra el sandbox** — firma de integridad (con expiración) confirmada con transacciones reales; ver §3 |
+| Arranque del pago (`createOrder` → enlace firmado → redirect) | ✅ con reserva de 30 min y enlace que expira con ella                                       |
+| Transición del pedido en el webhook     | ✅ `PENDING→PAID` vía la máquina de estados, idempotente bajo concurrencia; el stock se compromete al enviar, una sola vez |
+| Página de retorno `/checkout/gracias`   | ✅ confirmando / confirmado / rechazado con reintento / expirado / registrado                                |
+| URL de eventos en el panel de Wompi     | ⬜ **el único paso técnico restante** — Desarrollo → Programadores, modo prueba, apuntando a `https://<host>/api/webhooks/wompi`; llaves de prueba solo en Preview |
+| Cuenta de comercio                       | ⬜ existe en modo prueba ("SECRETO BTQ"); lista para radicar en cuanto se llene `RESPONSABLE` y se despliegue |
 | Descriptor `SECRETO BTQ`                 | ⬜ se confirma con la pasarela en el onboarding                                                              |
 
 **Lo que cambió (agosto 2026):** se compararon PayU y Wompi en precio, liquidación,
@@ -716,7 +808,8 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Correo de confirmación de pedido             | El pedido se confirma en pantalla y por WhatsApp; no hay email transaccional todavía (Resend, Fase 2). Cuando exista: remitente y asunto neutros, sin nombres de producto (regla 2)                                                        |
 | ~~Admin a medias~~ ✅                         | Saldada: Bloque D completo y en producción — pedidos y productos, con el ajuste de stock escribiendo al libro. Ver Bloque D                                                                                                                |
 | CI de `main` sin re-correr                   | El merge de Bloque D entró durante un outage mayor de GitHub Actions (el job nunca obtuvo runner). Re-correr el workflow de `main` cuando pase, o dejar que el siguiente push lo cubra — el código está verificado en local               |
-| Pago en línea sin registrar en el pedido     | `createOrder` solo escribe una fila `Payment` para contra entrega, que es el único método conocido en el checkout. Con `ONLINE` la pasarela elige el riel y su webhook escribe la fila (Bloque F); hasta entonces el panel muestra "la pasarela todavía no registra un intento" |
+| ~~Pago en línea sin registrar en el pedido~~ ✅ | Saldada en Bloque F: el arranque escribe la fila `Payment` (`method` null hasta que el evento reporte el riel) y el webhook la resuelve. Ver §3                                                                                                                                |
+| URL de eventos de Wompi sin registrar        | El webhook está probado con eventos firmados con el secreto real, pero Wompi solo entrega a la URL cargada en su panel (Desarrollo → Programadores, modo prueba): `https://<host>/api/webhooks/wompi`. Sin eso, los pedidos online quedan `PENDING` hasta que una asesora los marque. Para probar en Vercel: llaves `pub_test_` y `PAYMENT_PROVIDER=wompi` **solo en Preview** |
 | Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
 | Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |

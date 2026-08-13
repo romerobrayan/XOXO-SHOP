@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-import type { PaymentStatus } from "@/generated/prisma/enums";
+import type { PaymentMethod, PaymentStatus } from "@/generated/prisma/enums";
 import type { PaymentProvider } from "../payment-provider";
 import type {
   CreatePaymentInput,
@@ -13,18 +13,23 @@ import type {
 // PaymentProvider port (CLAUDE.md rule 5).
 //
 // ─────────────────────────────────────────────────────────────────────────
-// SIN VERIFICAR CONTRA EL SANDBOX. El ADR 002 manda escribir este adaptador
-// antes de que exista la cuenta, para sacar la pasarela de la ruta crítica —
-// esto es eso. Las firmas están implementadas según el esquema publicado por
-// Wompi y probadas contra vectores calculados a mano (wompi.test.ts), lo que
-// prueba que la implementación es consistente, NO que el esquema sea el que
-// Wompi usa hoy.
+// VERIFICADO CONTRA EL SANDBOX (2026-08-13, cuenta de prueba "SECRETO BTQ"):
 //
-// Antes de poner PAYMENT_PROVIDER=wompi en cualquier entorno: correr una
-// transacción de prueba con llaves `pub_test_` y un evento real del sandbox.
-// El modo de falla es cerrado —un esquema equivocado rechaza el webhook, no
-// acepta uno falso— así que la confirmación es un paso de verificación, no un
-// riesgo abierto.
+// - Firma de integridad CONFIRMADA, con y sin expiration-time: transacciones
+//   reales creadas contra sandbox.wompi.co con la firma exacta de este
+//   adaptador — 4242… aprobó, 4111… rechazó, y un reintento sobre la misma
+//   referencia tras un rechazo aprobó. Una firma equivocada falla ahí con
+//   422, así que el sandbox ES el verificador.
+// - Checksum de eventos CONFIRMADO contra eventos construidos con el formato
+//   documentado, transacciones reales del sandbox y el secreto de eventos
+//   real: aprobado, rechazado, duplicado y fuera de orden.
+//
+// Lo único no ejercitado es la ENTREGA HTTP del propio Wompi, porque exige
+// registrar la URL de eventos en el panel (Desarrollo → Programadores → URL
+// de Eventos, en modo prueba) apuntando a un despliegue público:
+// https://<host>/api/webhooks/wompi. Hacerlo es parte de encender
+// PAYMENT_PROVIDER=wompi en Preview; en Production, además, llaves prod_ y
+// la URL de eventos en modo producción.
 // ─────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CHECKOUT_URL = "https://checkout.wompi.co/p/";
@@ -99,6 +104,24 @@ type WompiEventBody = {
   signature?: { properties?: string[]; checksum?: string };
 };
 
+// El riel lo elige el comprador dentro del checkout de Wompi; el checkout
+// nuestro nunca lo pregunta. Estos son los payment_method_type que calzan
+// 1:1 con nuestro enum — cualquier otro (BANCOLOMBIA_COLLECT, PCOL, QR…)
+// queda como null y el rawPayload conserva el valor exacto.
+const WOMPI_METHOD_TO_ENUM: Record<string, PaymentMethod> = {
+  CARD: "CARD",
+  PSE: "PSE",
+  NEQUI: "NEQUI",
+  DAVIPLATA: "DAVIPLATA",
+  BANCOLOMBIA_TRANSFER: "BANCOLOMBIA_TRANSFER",
+};
+
+function mapPaymentMethodType(value: unknown): PaymentMethod | null {
+  return typeof value === "string"
+    ? (WOMPI_METHOD_TO_ENUM[value] ?? null)
+    : null;
+}
+
 export class WompiProvider implements PaymentProvider {
   readonly name = "wompi";
 
@@ -118,8 +141,12 @@ export class WompiProvider implements PaymentProvider {
     // exactamente lo que Wompi llama amount-in-cents. No se multiplica nada.
     const amountInCents = String(input.amountCents);
 
+    // Con expiración, la fecha entra a la firma ENTRE la moneda y el secreto:
+    // "<referencia><monto><moneda><expiración><secreto>", ISO8601 UTC — el
+    // formato exacto de Date.toISOString(). Sin expiración, se omite entera.
+    const expiration = input.expiresAt?.toISOString();
     const signature = sha256(
-      `${reference}${amountInCents}${input.currency}${this.config.integritySecret}`,
+      `${reference}${amountInCents}${input.currency}${expiration ?? ""}${this.config.integritySecret}`,
     );
 
     const url = new URL(this.config.checkoutUrl ?? DEFAULT_CHECKOUT_URL);
@@ -129,6 +156,9 @@ export class WompiProvider implements PaymentProvider {
     url.searchParams.set("reference", reference);
     url.searchParams.set("signature:integrity", signature);
     url.searchParams.set("redirect-url", input.redirectUrl);
+    if (expiration) {
+      url.searchParams.set("expiration-time", expiration);
+    }
     if (input.customerEmail) {
       url.searchParams.set("customer-data:email", input.customerEmail);
     }
@@ -190,6 +220,7 @@ export class WompiProvider implements PaymentProvider {
     return {
       providerReference: reference,
       status: this.mapStatus(String(transaction.status ?? "")),
+      method: mapPaymentMethodType(transaction.payment_method_type),
       rawPayload: body,
     };
   }

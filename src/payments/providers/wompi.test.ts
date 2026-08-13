@@ -8,9 +8,12 @@ import { WompiProvider, wompiConfigFromEnv, type WompiConfig } from "./wompi";
 // test tautológico (rehacer el hash con la misma función) no atraparía.
 //
 //   printf '%s' 'SECRETO-7J5VZ6920000COPtest_integrity_secret' | sha256sum
+//   printf '%s' 'SECRETO-7J5VZ6920000COP2026-09-01T12:00:00.000Ztest_integrity_secret' | sha256sum
 //   printf '%s' 'abc-123APPROVED9200001730000000test_events_secret' | sha256sum
 const INTEGRITY_DIGEST =
   "2fdc4916178891fcc790108d368db423943e4e7a03824318c0dff85eaad657d1";
+const INTEGRITY_DIGEST_WITH_EXPIRATION =
+  "e94272a653cbbc012078b9f68cc457428abe9e198425da99ff0e0558b943dcba";
 const EVENT_CHECKSUM =
   "87050b52b6096a26c2ca9a351ccdc9092b698309306266a2830f2ab7f5d20535";
 
@@ -87,6 +90,23 @@ describe("createPayment", () => {
     // En Web Checkout no existe id de transacción todavía: la referencia
     // nuestra es la llave con la que el evento va a encontrar el Payment.
     expect(providerReference).toBe("SECRETO-7J5VZ6");
+    // Sin expiresAt, el parámetro no viaja — mandarlo vacío rompe el widget.
+    expect(url.searchParams.has("expiration-time")).toBe(false);
+  });
+
+  it("con expiración: la fecha entra al enlace Y a la firma, en ISO8601 UTC", async () => {
+    const { checkoutUrl } = await provider.createPayment({
+      ...INPUT,
+      expiresAt: new Date("2026-09-01T12:00:00.000Z"),
+    });
+    const params = new URL(checkoutUrl).searchParams;
+
+    // La cadena firmada es <referencia><monto><moneda><expiración><secreto>:
+    // la expiración va ENTRE la moneda y el secreto, no al final ni ausente.
+    expect(params.get("expiration-time")).toBe("2026-09-01T12:00:00.000Z");
+    expect(params.get("signature:integrity")).toBe(
+      INTEGRITY_DIGEST_WITH_EXPIRATION,
+    );
   });
 });
 
@@ -97,6 +117,46 @@ describe("verifyWebhook", () => {
     expect(event).not.toBeNull();
     expect(event?.providerReference).toBe("SECRETO-7J5VZ6");
     expect(event?.status).toBe("APPROVED");
+  });
+
+  it("extrae el riel de pago cuando calza con el enum, null cuando no", async () => {
+    // payment_method_type NO está en las propiedades firmadas del evento de
+    // arriba, así que cambiarlo no invalida el checksum — por eso el riel es
+    // informativo (etiqueta del panel) y jamás decide una transición.
+    const conRiel = await provider.verifyWebhook(
+      evento({
+        data: {
+          transaction: {
+            id: "abc-123",
+            status: "APPROVED",
+            amount_in_cents: 9_200_00,
+            reference: "SECRETO-7J5VZ6",
+            currency: "COP",
+            payment_method_type: "NEQUI",
+          },
+        },
+      }),
+    );
+    expect(conRiel?.method).toBe("NEQUI");
+
+    const rielDesconocido = await provider.verifyWebhook(
+      evento({
+        data: {
+          transaction: {
+            id: "abc-123",
+            status: "APPROVED",
+            amount_in_cents: 9_200_00,
+            reference: "SECRETO-7J5VZ6",
+            currency: "COP",
+            payment_method_type: "BANCOLOMBIA_COLLECT",
+          },
+        },
+      }),
+    );
+    expect(rielDesconocido?.method).toBeNull();
+
+    const sinRiel = await provider.verifyWebhook(evento());
+    expect(sinRiel?.method).toBeNull();
   });
 
   it("rechaza un checksum equivocado", async () => {

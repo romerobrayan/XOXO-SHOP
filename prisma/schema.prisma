@@ -362,10 +362,14 @@ model Payment {
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   provider          String // "wompi" | "payu" | "mock" — never "stripe", see spec §2
-  providerReference String?       @unique
-  method            PaymentMethod
-  status            PaymentStatus @default(PENDING)
-  amountCents       Int
+  providerReference String? @unique
+  // Null between initiating an ONLINE payment and its first webhook: the
+  // gateway's checkout picks the actual rail (CARD / PSE / NEQUI…) and only
+  // the event knows it. Contra entrega and manual transfer set it at creation.
+  method PaymentMethod?
+  status PaymentStatus  @default(PENDING)
+
+  amountCents Int
 
   rawPayload Json? // full provider response, for reconciliation and disputes
 

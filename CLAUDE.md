@@ -300,8 +300,18 @@ the status machine, product CRUD with the option system and two-tap stock
 adjustment) is live at `/admin`. Staff accounts are created with
 `ADMIN_PASSWORD='…' npm run admin:create -- --email …` — sign-up is disabled on
 purpose. `docs/ESTADO-Y-SIGUIENTE-SESION.md` tracks what is done, what is open
-debt, and what comes next — update it at the end of a working session. Next
-block: F (Wompi sandbox adapter).
+debt, and what comes next — update it at the end of a working session.
+
+**Bloque F verified against the Wompi sandbox (2026-08-13).** Online checkout
+builds the signed Web Checkout link (30-minute reservation, link expires with
+it), the webhook settles orders idempotently **through the state machine**
+(stock still commits exactly once, at shipping — see
+`src/features/orders/payment-events.ts`), and `/checkout/gracias` is the
+return page. The integrity signature is confirmed with real sandbox
+transactions. Production stays on `PAYMENT_PROVIDER=mock` until the merchant
+account is approved; test keys belong in Vercel **Preview only**, and Wompi's
+panel still needs the events URL (test mode) pointed at
+`https://<host>/api/webhooks/wompi`.
 
 **Images.** Real product photography does not exist yet. Use
 `ProductImagePlaceholder` (4:5, diagonal arena stripes, visible "Imagen pendiente"
