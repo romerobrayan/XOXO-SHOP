@@ -94,6 +94,8 @@ npm run import:revision      # local curation page over the staging
 npm run import:promote       # approved subset → Cloudinary + LOCAL db
                              # (--neon only after client sign-off; it refuses
                              #  Neon otherwise — docs/IMPORT-PROVEEDORES.md)
+npm run admin:dev            # dev-only panel login: admin@secreto.local /
+                             # Admin123 — refuses Neon, Vercel and production
 ```
 
 The storefront runs **with or without a database**: leave `DATABASE_URL` unset and the
@@ -299,7 +301,9 @@ orders against Neon, and the admin panel (better-auth login, order management wi
 the status machine, product CRUD with the option system and two-tap stock
 adjustment) is live at `/admin`. Staff accounts are created with
 `ADMIN_PASSWORD='…' npm run admin:create -- --email …` — sign-up is disabled on
-purpose. `docs/ESTADO-Y-SIGUIENTE-SESION.md` tracks what is done, what is open
+purpose. For local work, `npm run admin:dev` mints the default
+`admin@secreto.local` / `Admin123` account; it refuses to run against Neon or
+any deployed environment, and that refusal is load-bearing. `docs/ESTADO-Y-SIGUIENTE-SESION.md` tracks what is done, what is open
 debt, and what comes next — update it at the end of a working session.
 
 **Bloque F verified against the Wompi sandbox (2026-08-13).** Online checkout

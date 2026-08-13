@@ -11,9 +11,9 @@
 // which is the point.
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { hashPassword } from "better-auth/crypto";
 
 import { PrismaClient } from "../../src/generated/prisma/client";
+import { upsertCredentialAccount } from "./upsert-account";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
@@ -44,45 +44,10 @@ async function main() {
     throw new Error("ADMIN_PASSWORD must be at least 12 characters.");
   }
 
-  const hash = await hashPassword(password);
-
-  const user = await db.user.upsert({
-    where: { email },
-    update: { name },
-    create: {
-      id: crypto.randomUUID(),
-      email,
-      name,
-      emailVerified: true,
-    },
-  });
-
-  // better-auth stores credentials on an Account row with providerId
-  // "credential" — the same table it uses for OAuth, so the password column
-  // is nullable there and set only for this provider.
-  const existing = await db.account.findFirst({
-    where: { userId: user.id, providerId: "credential" },
-  });
-
-  if (existing) {
-    await db.account.update({
-      where: { id: existing.id },
-      data: { password: hash },
-    });
-  } else {
-    await db.account.create({
-      data: {
-        id: crypto.randomUUID(),
-        accountId: user.id,
-        providerId: "credential",
-        userId: user.id,
-        password: hash,
-      },
-    });
-  }
+  const outcome = await upsertCredentialAccount(db, { email, name, password });
 
   console.log(
-    `${existing ? "Password updated" : "Account created"} for ${email}.`,
+    `${outcome === "updated" ? "Password updated" : "Account created"} for ${email}.`,
   );
 }
 

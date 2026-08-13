@@ -11,6 +11,7 @@
     "test": "vitest run",
     "postinstall": "prisma generate",
     "admin:create": "tsx scripts/admin/create-user.ts",
+    "admin:dev": "tsx scripts/admin/create-dev-user.ts",
     "import:check": "tsx scripts/import/check-cloudinary.ts",
     "import:distrisex": "tsx scripts/import/fetch-distrisex.ts",
     "import:climax": "tsx scripts/import/fetch-climax.ts",

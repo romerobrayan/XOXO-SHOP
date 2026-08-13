@@ -59,6 +59,12 @@ La Postgres local con Docker sigue disponible (`docs/POSTGRES-DOCKER.md`) para
 trabajar sin internet, para iterar rápido —es ~9× más veloz que Neon— y porque
 `prisma migrate dev` necesita una base descartable para **generar** migraciones.
 
+Para entrar al panel en local sin ceremonia: `npm run admin:dev` crea (o
+restablece) la cuenta **admin@secreto.local / Admin123** — solo desarrollo; el
+script se niega contra Neon, en Vercel y con `NODE_ENV=production`, con el
+mismo gesto que el guardarraíl del promote. Las cuentas reales siguen saliendo
+de `admin:create`, que exige 12 caracteres.
+
 **El flujo de migraciones quedó partido en dos:** `migrate dev` contra la local
 para generar la carpeta de migración y commitearla, `migrate deploy` contra Neon
 para aplicarla. Nunca `migrate dev`, `migrate reset` ni `db push` contra Neon.
