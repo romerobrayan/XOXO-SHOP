@@ -13,18 +13,29 @@ import type {
 // PaymentProvider port (CLAUDE.md rule 5).
 //
 // ─────────────────────────────────────────────────────────────────────────
-// SIN VERIFICAR CONTRA EL SANDBOX. El ADR 002 manda escribir este adaptador
-// antes de que exista la cuenta, para sacar la pasarela de la ruta crítica —
-// esto es eso. Las firmas están implementadas según el esquema publicado por
-// Wompi y probadas contra vectores calculados a mano (wompi.test.ts), lo que
-// prueba que la implementación es consistente, NO que el esquema sea el que
-// Wompi usa hoy.
+// ESTADO DE VERIFICACIÓN (2026-08-12)
 //
-// Antes de poner PAYMENT_PROVIDER=wompi en cualquier entorno: correr una
-// transacción de prueba con llaves `pub_test_` y un evento real del sandbox.
-// El modo de falla es cerrado —un esquema equivocado rechaza el webhook, no
-// acepta uno falso— así que la confirmación es un paso de verificación, no un
-// riesgo abierto.
+// `verifyWebhook` — **esquema confirmado** contra la documentación de Wompi:
+// el checksum es SHA-256 sobre la concatenación, en orden, de los valores
+// que apuntan las rutas de `signature.properties` dentro de `data`, seguida
+// del `timestamp` UNIX y del secreto de eventos. Es exactamente lo que hace
+// esta clase. Wompi además manda el mismo checksum en una cabecera HTTP;
+// leemos el del cuerpo, que es la otra fuente que él mismo declara válida.
+//
+// `createPayment` — la firma de integridad (referencia + monto + moneda +
+// secreto) **sigue sin confirmar** contra fuente primaria. Es el único
+// pendiente real del adaptador.
+//
+// Nada de esto se ha ejercido contra el sandbox todavía. Antes de poner
+// PAYMENT_PROVIDER=wompi en producción hay que correr una transacción con
+// llaves `pub_test_` (4242 4242 4242 4242 aprueba, 4111 1111 1111 1111
+// rechaza, cualquier otra da ERROR) y recibir un evento real.
+//
+// Si el host de Web Checkout del sandbox resultara distinto de
+// checkout.wompi.co, se resuelve con WOMPI_CHECKOUT_URL sin tocar código.
+//
+// El modo de falla es cerrado: un esquema equivocado rechaza el webhook,
+// nunca acepta uno falso.
 // ─────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CHECKOUT_URL = "https://checkout.wompi.co/p/";
