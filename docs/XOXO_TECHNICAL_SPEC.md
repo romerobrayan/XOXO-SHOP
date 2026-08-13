@@ -3,8 +3,11 @@
 **Client:** XOXO Sex Shop (`@xoxo.sex0`), rebranding to **SECRETO · Boutique Erótica** —
 adult products retailer, Medellín, Colombia
 **Author:** Brayan Romero
-**Version:** 0.3 — Revised after the SECRETO rebrand and the Phase 0 build
-**Status:** Phase 0 implemented; Phase 1 (database) starting
+**Version:** 0.4 — Delivery plan, backlog and §6.4 stock flow synced with what shipped
+through Bloque F (online payment verified against the Wompi sandbox)
+**Status:** Phases 1–3 built (catalog + admin + checkout + payments-in-sandbox);
+production payment waits on the merchant account. Living state:
+`docs/ESTADO-Y-SIGUIENTE-SESION.md`
 
 > **Scope of this document.** Sections 1–7 and 9–11 are the product and engineering spec.
 > **Section 8 is a summary of the design direction, not its source** — the design source
@@ -166,6 +169,16 @@ dominates API quality when the alternative is no card payments at all. Approach 
 with PayU, and still declare the category honestly. One merchant's approval is evidence
 about the category, not a guarantee about this client.
 
+> **Superseded by ADR 002 (agosto 2026).** A priced comparison flipped the order
+> once more: **Wompi first, PayU the documented fallback.** Card fees tie at exactly
+> COP 100.000; what pays is the payment mix (Nequi and PSE — cheaper and more
+> discreet — only exist on Wompi's side), D+1 settlement, and integration cost. PayU
+> keeps the one decisive card — its public category table lists "Sex shop y
+> artículos eróticos" as *Restringido* (allowed with authorization) in Colombia —
+> which is why it stays as the documented fallback. The Wompi adapter is written
+> and verified against the sandbox (Bloque F, 2026-08-13). Full comparison:
+> `docs/decisions/002-pasarela-wompi-vs-payu.md`.
+
 **They also run manual bank transfer as a first-class method**, not a fallback: transfers
 and over-the-counter deposits to named Bancolombia and Davivienda accounts, with the
 customer sending proof to WhatsApp and an advisor confirming before the order ships.
@@ -200,7 +213,8 @@ only accepts cards will lose conversions on a mid-ticket apparel purchase.
 Fees change frequently and depend on plan and volume. Confirm current rates on each
 provider's official site before quoting the client.
 
-**Recommendation: PayU first, Wompi second.** PayU is demonstrably processing for this
+**Recommendation: PayU first, Wompi second** *(superseded by ADR 002 — Wompi first,
+PayU documented fallback; see the note above)*. PayU is demonstrably processing for this
 category in Colombia at scale (see field evidence above), which outweighs Wompi's better
 API. Approval risk dominates developer experience when the downside is having no card
 payments at all. Open both conversations in the same week; the adapter is written against
@@ -414,9 +428,9 @@ tutorials will not match.
 | --- | --- | --- |
 | `nanoid` | Human-readable order numbers | Yes |
 | `date-fns` | Dates with `es` locale | Yes |
-| `better-auth` | Admin authentication. Lighter than Auth.js for a single-role panel | No — Phase 4 |
-| `resend` + `react-email` | Order confirmation emails | No — Phase 3 |
-| `next-cloudinary` | Product image hosting, transformation, and optimization | No — waiting on the photo session |
+| `better-auth` | Admin authentication. Lighter than Auth.js for a single-role panel | Yes — live in production (Bloque D); sign-up disabled, accounts via `admin:create` |
+| `resend` + `react-email` | Order confirmation emails | No — the one open piece of Sprint 4 |
+| `next-cloudinary` | Product image hosting, transformation, and optimization | Cloudinary is live via the import pipeline (`scripts/import/`), which re-hosts supplier photos; the component library itself is still unused |
 
 The three unchecked rows are decisions, not dependencies. Nothing imports them yet, so
 they are not in `package.json`; add each in the commit that first uses it, along with its
@@ -433,8 +447,9 @@ request at runtime.
 ### Infrastructure choices
 
 - **Hosting:** Vercel. Zero-config for Next.js, and the free tier covers a v1 store.
-- **Database:** Neon or Supabase (both managed Postgres, both have a usable free tier).
-  Neon's branching is convenient for testing migrations.
+- **Database:** **Neon** (chosen and live — `docs/NEON-CLOUD.md`), with the local Docker
+  Postgres kept for offline work and for generating migrations
+  (`docs/POSTGRES-DOCKER.md`).
 - **Images:** Cloudinary free tier. Do not commit product photography to the repo.
 
 ---
@@ -447,7 +462,8 @@ What exists today, with the directories Phases 1–4 will fill marked `(planned)
 XOXO-SHOP/
 ├── prisma/
 │   ├── schema.prisma
-│   ├── migrations/                  # 20260727232736_init — the whole model, one migration
+│   ├── migrations/                  # init · order_idempotency_key · guest_address ·
+│   │                                # admin_auth · payment_method_nullable
 │   └── seed.ts                      # writes the demo catalog to Postgres
 ├── prisma.config.ts                 # Prisma 7 config: schema path, migrations, seed command
 ├── src/
@@ -458,9 +474,10 @@ XOXO-SHOP/
 │   │   │   ├── tienda/
 │   │   │   │   ├── page.tsx         # Catalog (PLP)
 │   │   │   │   └── [slug]/page.tsx  # Product detail (PDP)
-│   │   │   └── carrito/page.tsx
-│   │   ├── (checkout)/checkout/     # own layout: simplified header, no nav
-│   │   ├── (admin)/admin/           # auth-gated panel (placeholder)
+│   │   │   ├── carrito/page.tsx
+│   │   │   └── legal/               # privacidad · términos · envíos · devoluciones
+│   │   ├── (checkout)/checkout/     # own layout; gracias/ = gateway return page
+│   │   ├── (admin)/admin/           # auth-gated panel — orders + products (Bloque D)
 │   │   ├── api/webhooks/[provider]/route.ts
 │   │   ├── layout.tsx               # fonts, metadata
 │   │   └── globals.css              # Tailwind v4 @theme — the SECRETO tokens
@@ -484,15 +501,19 @@ XOXO-SHOP/
 │   │   │   ├── sort.ts · schemas.ts
 │   │   │   └── components/          # ProductCard, OptionPicker, Gallery, FilterSidebar, …
 │   │   ├── cart/                    # Zustand store + header link
-│   │   ├── checkout/                # CheckoutFlow (3 steps, client-side bag)
+│   │   ├── checkout/                # createOrder · stock primitives · expiry sweep ·
+│   │   │                            # payment initiation · CheckoutFlow · return-page query
 │   │   ├── home/                    # NewsletterForm
-│   │   ├── inventory/               # (planned) reserve.ts, movements.ts
-│   │   └── orders/                  # (planned)
+│   │   ├── admin/                   # requireStaff session gate (better-auth)
+│   │   ├── products/                # admin CRUD + two-tap stock adjustment
+│   │   └── orders/                  # transitions (the state machine) · shared executor ·
+│   │                                # payment-events (webhook semantics) · panel queries
 │   │
 │   ├── payments/
 │   │   ├── payment-provider.ts      # the port
 │   │   ├── types.ts
-│   │   ├── providers/mock.ts        # payu.ts / wompi.ts land in Phase 3
+│   │   ├── providers/               # mock.ts · wompi.ts (sandbox-verified 2026-08-13);
+│   │   │                            # payu.ts only if Wompi's onboarding falls through
 │   │   └── index.ts                 # factory, reads PAYMENT_PROVIDER
 │   │
 │   ├── lib/                         # db.ts (Prisma singleton), money.ts, slug.ts,
@@ -504,7 +525,7 @@ XOXO-SHOP/
 ├── docs/
 │   ├── XOXO_TECHNICAL_SPEC.md       # this file
 │   ├── ESTADO-Y-SIGUIENTE-SESION.md # current state, open debt, next blocks
-│   ├── decisions/                   # ADRs — 001-payment-provider.md
+│   ├── decisions/                   # ADRs — 001 payment provider · 002 Wompi vs PayU
 │   └── archive/                     # pre-rebrand design docs (neon direction)
 ├── .env.example
 └── CLAUDE.md
@@ -653,14 +674,24 @@ current DM process gets wrong. The rule:
 available(variant) = stockOnHand - stockReserved
 ```
 
-Flow:
+Flow — as built in Bloques C, D and F (the state machine in
+`src/features/orders/transitions.ts` is the authority on which move touches stock):
 
-1. **Checkout starts** → in a single transaction, increment `stockReserved` for each item
-   and set `Order.reservationExpiresAt = now + 30 min`. Write a `RESERVATION` movement.
-2. **Payment approved (webhook)** → decrement `stockOnHand`, decrement `stockReserved`,
-   write a `SALE` movement, set order to `PAID`.
-3. **Payment declined or reservation expires** → decrement `stockReserved`, write
-   `RESERVATION_RELEASE`.
+1. **Checkout starts** → in a single transaction, increment `stockReserved` for each
+   item and set `Order.reservationExpiresAt` — **30 minutes** for online payment
+   through a real gateway (the signed payment link carries the same expiry, so the
+   gateway refuses money for released stock), **72 hours** for contra entrega and for
+   the mock. Write a `RESERVATION` movement.
+2. **Payment approved (webhook)** → set order to `PAID` **through the state machine**,
+   whose `PENDING→PAID` stock effect is `none`: the units stay reserved for the order.
+   The sale commits **exactly once, at `PROCESSING→SHIPPED`** from the panel —
+   `RESERVATION_RELEASE` + `SALE` movements, both balances drop.
+   `transitions.test.ts` pins that invariant ("consumes the reservation only when
+   shipping"); a webhook that committed here would double-commit at shipping.
+3. **Reservation expires** (abandoned, or declined and never retried) → the sweep
+   cancels `PENDING` orders and releases: decrement `stockReserved`, write
+   `RESERVATION_RELEASE`. A declined payment alone releases nothing — the buyer can
+   retry the same signed link while the reservation holds.
 
 Every stock mutation runs inside `prisma.$transaction` with the variant row locked. Use
 conditional updates so a concurrent request cannot drive availability negative:
@@ -673,7 +704,12 @@ const updated = await tx.productVariant.updateMany({
 if (updated.count === 0) throw new OutOfStockError(variantId);
 ```
 
-Expiry sweeping runs on a Vercel Cron hitting a protected route handler every 10 minutes.
+(As built, the guard is a raw conditional `UPDATE` in
+`src/features/checkout/stock.ts` — Prisma cannot compare a column against another
+column plus a parameter — but the shape and the failure mode are exactly these.)
+
+Expiry sweeping runs on a Vercel Cron hitting a protected route handler (daily on the
+Hobby tier), plus an opportunistic sweep at the top of every `createOrder`.
 
 **Cash on delivery breaks this model and needs its own rule.** A `contra entrega` order
 reserves stock against a payment that may never happen, and a 30-minute expiry is
@@ -700,10 +736,10 @@ approval de-risks everything downstream.
 | Phase | Output | Blocks on | Status |
 | --- | --- | --- | --- |
 | **0 — Design** | Age gate, Home, Catálogo, Producto, Checkout. Demo data, deployed to a Vercel preview URL | Nothing | **Implemented** — SECRETO handoff built, awaiting client sign-off |
-| **1 — Catalog** | Prisma schema and first migration, seed script, admin product CRUD | Phase 0 approval | In progress — schema, migration, and seed done; admin CRUD is the open half |
-| **2 — Cart & Checkout** | Server-side cart, address form, order creation, checkout against `MockProvider` | Phase 1 | Not started — the current 3-step checkout is client-side only and creates no `Order` |
-| **3 — Payments** | PayU adapter, webhooks, reservation logic, confirmation email | Merchant account approved | Not started — port and mock provider exist |
-| **4 — Admin & launch** | Inventory screen, order management, analytics, domain | Phase 3 | Not started |
+| **1 — Catalog** | Prisma schema and first migration, seed script, admin product CRUD | Phase 0 approval | **Mostly done** — schema, migrations, seed, supplier import pipeline (Cloudinary) and admin product CRUD shipped; open: the client's real curation and per-category margins |
+| **2 — Cart & Checkout** | Server-side cart, address form, order creation, checkout against `MockProvider` | Phase 1 | **Implemented (Bloque C, agosto 2026)** — `createOrder` writes `Order` + snapshots, guest address, per-line conflicts, atomic reservation with expiry |
+| **3 — Payments** | Gateway adapter (Wompi per ADR 002, PayU fallback), webhooks, reservation logic, confirmation email | Merchant account approved | **Implemented and sandbox-verified (Bloque F, 2026-08-13)** — signed initiation, idempotent webhook through the state machine, return page. Production stays on `mock` until the merchant account is approved; confirmation email still open |
+| **4 — Admin & launch** | Inventory screen, order management, analytics, domain | Phase 3 | **Admin shipped (Bloque D)** — orders with the state machine and product CRUD with two-tap stock adjustment, live in production; open: analytics, domain, launch checklist |
 
 Phase 3 depends on an external approval process outside your control, and in this category
 that approval is genuinely uncertain rather than merely slow. Starting the gateway
@@ -897,29 +933,36 @@ Discover ──────► Choose ──────► Buy ─────�
 **Definition of done for Sprint 1:** deployed to a preview URL, responsive from 375px,
 keyboard focus visible, reduced motion respected, client link sent.
 
-### Sprint 2 — Catalog
+### Sprint 2 — Catalog — **done except client decisions**
 
 Prisma schema and first migration · seed script with the client's real products · admin
 product CRUD · Cloudinary image upload · catalog filters by category and brand
 
-Schema, migration, seed, and the category/brand filters are in. **Open:** admin CRUD and
-image upload — both wait on the photo session and on the client's full catalog list.
+Schema, migrations, seed, filters, the admin product CRUD (Bloque D) and the supplier
+import pipeline with Cloudinary re-hosting (Bloque H) are in. **Open:** the client's
+real curation over `revision.html` and the per-category margins — decisions, not code.
 
-### Sprint 3 — Cart and checkout
+### Sprint 3 — Cart and checkout — **done (Bloque C)**
 
 Zustand cart with persistence · cart drawer · address form with Colombian
 department/city and document fields · checkout against `MockProvider` · order creation
 and reservation logic
 
-The bag and the 3-step checkout exist as UI with client-side state. **Open:** everything
-server-side — no `Order` row is written yet, and no stock is reserved.
+`createOrder` writes `Order` + `OrderItem` snapshots with a guest address, prices from
+the database, per-line conflicts, idempotency key, atomic reservation and the expiry
+sweep. The Playwright e2e buys end to end against a real Postgres.
 
-### Sprint 4 — Payments
+### Sprint 4 — Payments — **done against the sandbox (Bloque F, 2026-08-13)**
 
-`PaymentProvider` port · PayU adapter (Wompi second) · webhook handler with signature
-verification and idempotency · reservation expiry cron · confirmation email
+`PaymentProvider` port · Wompi adapter first (ADR 002; PayU the documented fallback) ·
+webhook handler with signature verification and idempotency · reservation expiry cron ·
+confirmation email
 
-The port and `MockProvider` are in; the adapters wait on a merchant account.
+All in except the confirmation email (Resend, Fase 2). The integrity signature is
+confirmed with real sandbox transactions; the webhook settles orders through the state
+machine and survives duplicated, concurrent and out-of-order deliveries. Production
+waits on the merchant account: test keys in Vercel Preview only, events URL in Wompi's
+panel, `PAYMENT_PROVIDER=mock` in Production until then.
 
 ### Prioritization note
 

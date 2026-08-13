@@ -12,9 +12,13 @@ export class MockProvider implements PaymentProvider {
   readonly name = "mock";
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
+    // URL API, not string concat: the return page already carries its own
+    // query (?pedido=…), so appending "?mock=approved" would malform it.
+    const url = new URL(input.redirectUrl);
+    url.searchParams.set("mock", "approved");
     return {
       providerReference: `mock_${input.orderNumber}`,
-      checkoutUrl: `${input.redirectUrl}?mock=approved`,
+      checkoutUrl: url.toString(),
     };
   }
 
@@ -28,6 +32,7 @@ export class MockProvider implements PaymentProvider {
       return {
         providerReference: payload.providerReference,
         status: this.mapStatus(payload.status ?? "APPROVED"),
+        method: null,
         rawPayload: payload,
       };
     } catch {

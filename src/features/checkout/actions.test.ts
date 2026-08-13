@@ -9,6 +9,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
+import { getPaymentProvider } from "@/payments";
 import { createOrder } from "./actions";
 import { releaseExpiredReservations } from "./expiry";
 import { SHIPPING_CENTS } from "./shipping";
@@ -260,5 +261,92 @@ describe.skipIf(!databaseUrl)("createOrder", () => {
     // A second sweep (or a racing cron) finds nothing to do
     const second = await releaseExpiredReservations(db);
     expect(second.released).toBe(0);
+  });
+
+  // ─── Online payment initiation ──────────────────────────────────────────
+  // These run against whichever provider the environment configures (wompi
+  // locally with pub_test_ keys, mock in CI), so they assert the contract —
+  // row written, link returned, idempotent re-issue — and only pin
+  // gateway-specific detail when a real gateway is active.
+
+  const onlineInput = () => ({
+    ...freshInput(),
+    paymentMethod: "ONLINE" as const,
+    delivery: { ...delivery, email: "compradora@ejemplo.co" },
+  });
+
+  it("ONLINE: writes the gateway Payment row and hands back the checkout link", async () => {
+    const providerName = getPaymentProvider().name;
+    const result = await createOrder(onlineInput());
+    const data = result.data;
+    expect(data?.ok).toBe(true);
+    if (!data?.ok) return;
+
+    expect(data.checkoutUrl).toBeDefined();
+    const url = new URL(data.checkoutUrl!);
+
+    // The attempt is on the books before the buyer ever sees the gateway:
+    // that row is what the webhook will find by reference. Rail unknown
+    // until the event says so (method null) — never invented here.
+    const payments = await db.payment.findMany({
+      where: { orderId: data.orderId },
+    });
+    expect(payments).toHaveLength(1);
+    expect(payments[0].provider).toBe(providerName);
+    expect(payments[0].providerReference).not.toBeNull();
+    expect(payments[0].status).toBe("PENDING");
+    expect(payments[0].method).toBeNull();
+    expect(payments[0].amountCents).toBe(PRICE_A * 2 + PRICE_B + SHIPPING_CENTS);
+
+    const order = await db.order.findUniqueOrThrow({
+      where: { id: data.orderId },
+    });
+    const minutes =
+      (order.reservationExpiresAt!.getTime() - Date.now()) / 60_000;
+    if (providerName === "mock") {
+      // No real redirect exists: an advisor coordinates over WhatsApp, so
+      // the window stays at contra entrega's 72h.
+      expect(minutes).toBeGreaterThan(71 * 60);
+    } else {
+      // A real gateway redirect holds stock for 30 minutes, and the signed
+      // link expires at the same instant the reservation does.
+      expect(minutes).toBeGreaterThan(25);
+      expect(minutes).toBeLessThan(35);
+      expect(url.searchParams.get("expiration-time")).toBe(
+        order.reservationExpiresAt!.toISOString(),
+      );
+      expect(url.searchParams.get("reference")).toBe(data.orderNumber);
+    }
+  });
+
+  it("ONLINE: a retried request re-issues the identical link, not a second row", async () => {
+    const input = onlineInput();
+    const first = await createOrder(input);
+    const second = await createOrder(input);
+    expect(first.data?.ok).toBe(true);
+    expect(second.data?.ok).toBe(true);
+    if (!first.data?.ok || !second.data?.ok) return;
+
+    // Deterministic reference + stored expiry ⇒ byte-identical URL, and the
+    // upsert means the double-tap never doubles the Payment row.
+    expect(second.data.checkoutUrl).toBe(first.data.checkoutUrl);
+    expect(
+      await db.payment.count({ where: { orderId: first.data.orderId } }),
+    ).toBe(1);
+  });
+
+  it("contra entrega keeps its manual Payment row and never gets a link", async () => {
+    const result = await createOrder(freshInput());
+    expect(result.data?.ok).toBe(true);
+    if (!result.data?.ok) return;
+
+    expect(result.data.checkoutUrl).toBeUndefined();
+    const payments = await db.payment.findMany({
+      where: { orderId: result.data.orderId },
+    });
+    expect(payments).toHaveLength(1);
+    expect(payments[0].provider).toBe("manual");
+    expect(payments[0].method).toBe("CASH_ON_DELIVERY");
+    expect(payments[0].providerReference).toBeNull();
   });
 });
