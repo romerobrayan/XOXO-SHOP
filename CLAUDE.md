@@ -90,7 +90,10 @@ docker compose stop
 npm run import:check         # Cloudinary preflight (real test upload)
 npm run import:distrisex     # supplier → data/import/staging (git-ignored)
 npm run import:climax
-npm run import:revision      # local curation page over the staging
+npm run import:stage         # staging JSON → SupplierStagingProduct table, the
+                             # staging the admin curator reads (--neon for the
+                             # deployed panel's database; refuses Neon otherwise)
+npm run import:revision      # local curation page over the staging (CLI path)
 npm run import:promote       # approved subset → Cloudinary + LOCAL db
                              # (--neon only after client sign-off; it refuses
                              #  Neon otherwise — docs/IMPORT-PROVEEDORES.md)
@@ -146,12 +149,16 @@ being safe the moment Neon holds a real order.
 src/app/(storefront)   public pages, behind the age gate
 src/app/(admin)        auth-gated panel
 src/features/*         domain logic — queries.ts, actions.ts, schemas.ts, components/
+src/features/import    supplier pipeline core shared by CLI and panel: staging
+                       shape (Zod), normalization, pricing, promote-core
 src/payments/          port + adapters, the only place gateway SDKs appear
 src/components/ui      shadcn primitives
-src/lib                db singleton, money, slug, utils
+src/lib                db singleton, money, slug, utils; cloudinary.ts is the
+                       only module that touches the Cloudinary SDK
 src/components/site    header, footer, announcement bar, breadcrumb
 src/proxy.ts           age gate (Next 16 renamed middleware.ts → proxy.ts)
 prisma/migrations      applied migrations — never hand-edit one
+scripts/import         CLI wrappers over src/features/import + fetch adapters
 ```
 
 A change to one feature should touch one directory under `src/features/`.
@@ -316,6 +323,23 @@ transactions. Production stays on `PAYMENT_PROVIDER=mock` until the merchant
 account is approved; test keys belong in Vercel **Preview only**, and Wompi's
 panel still needs the events URL (test mode) pointed at
 `https://<host>/api/webhooks/wompi`.
+
+**Bloque I — the client curates from the panel (2026-08-13).** Product photos
+upload/reorder/remove from `/admin/productos/[id]` straight to Cloudinary
+(server-side, content-addressed public_id, brand transform on delivery, EXIF
+never reaches derivatives — proven against the real account). The supplier
+staging lives in Postgres (`SupplierStagingProduct`, fed by
+`npm run import:stage`) and `/admin/proveedores` browses the 1,275 with
+search/filters, sets the sale price (margin or manual — supplier price is
+reference only) and publishes through the SAME promote core the CLI uses
+(`src/features/import/promote-core.ts`). Archive/restore is a one-tap gesture
+in list and detail; hard delete exists only for products with zero orders and
+zero ledger rows, guarded inside the transaction. `/admin` is now a sales
+dashboard (aggregate Postgres queries, sale = paid, or delivered for contra
+entrega; no third-party trackers — the privacy policy forbids them).
+`CLOUDINARY_URL` is loaded in Vercel (Production and Preview, 2026-08-13);
+deploying Bloque I still needs `migrate deploy` and `import:stage -- --neon`
+against Neon.
 
 **Images.** Real product photography does not exist yet. Use
 `ProductImagePlaceholder` (4:5, diagonal arena stripes, visible "Imagen pendiente"

@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { MediaManager } from "@/features/products/components/MediaManager";
 import { OptionsEditor } from "@/features/products/components/OptionsEditor";
 import { ProductForm } from "@/features/products/components/ProductForm";
+import { ProductLifecycle } from "@/features/products/components/ProductLifecycle";
 import { VariantsTable } from "@/features/products/components/VariantsTable";
 import {
   getAdminProduct,
@@ -72,6 +74,10 @@ export default async function ProductoPage({
         />
       </Card>
 
+      <Card title="Fotos">
+        <MediaManager productId={product.id} media={product.media} />
+      </Card>
+
       <Card title="Opciones">
         <OptionsEditor productId={product.id} options={product.options} />
       </Card>
@@ -81,6 +87,14 @@ export default async function ProductoPage({
           productId={product.id}
           hasOptionValues={hasOptionValues}
           variants={product.variants}
+        />
+      </Card>
+
+      <Card title="Archivar o eliminar">
+        <ProductLifecycle
+          productId={product.id}
+          status={product.status}
+          hasHistory={product.hasHistory}
         />
       </Card>
     </section>

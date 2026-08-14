@@ -1,71 +1,30 @@
-// The staging area: everything a supplier publishes, normalized to one shape,
-// BEFORE any of it touches the catalog. Curation happens on top of these files
-// (see seleccion.json); promote.ts only ever reads what was approved.
-//
-// Supplier prices are REFERENCE data. Climax is simultaneously a supplier and
-// a retail competitor in Medellín, and DistriSex publishes wholesale prices —
-// neither is the client's sale price. The sale price is decided at promote
-// time from seleccion.json (per-product override or configured margin).
+// CLI-side staging I/O: the git-ignored JSON dumps under data/import/ and the
+// committed curation file (seleccion.json). The staging SHAPE — schema and
+// types — lives in src/features/import/staging.ts, shared with the panel;
+// this module only owns reading and writing files.
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import {
   CATEGORIES,
-  DATA_DIR,
-  SELECCION_PATH,
   type CategorySlug,
   type Supplier,
-} from "./config";
+} from "../../../src/features/import/config";
+import {
+  STAGING_FORMAT_VERSION,
+  type StagedProduct,
+} from "../../../src/features/import/staging";
+import { DATA_DIR, SELECCION_PATH } from "./config";
 
-export const STAGING_FORMAT_VERSION = 1;
-
-export type StagedOptionValue = { value: string; hex: string | null };
-export type StagedOption = { name: string; values: StagedOptionValue[] };
-
-export type StagedVariant = {
-  /** Supplier's own id for the variant (Woo variation id / Shopify variant id). */
-  supplierVariantId: string;
-  sku: string | null;
-  /** Option name → value. Empty object for the option-less singleton variant. */
-  options: Record<string, string>;
-  /** Minor units (COP cents). Reference only — never the sale price. */
-  supplierPriceCents: number;
-  supplierCompareAtCents: number | null;
-  /** Supplier availability — reference only; the client's stock is her own. */
-  available: boolean;
-};
-
-export type StagedImage = {
-  url: string;
-  /** Set when the supplier ties the image to an option value (color photos). */
-  optionValue: { option: string; value: string } | null;
-  position: number;
-};
-
-export type StagedProduct = {
-  supplierRef: string; // "distrisex:99363" | "climax:liguero-lucy-rojo"
-  supplier: Supplier;
-  supplierUrl: string;
-  name: string;
-  descriptionText: string;
-  brand: string | null;
-  supplierCategories: string[];
-  tags: string[];
-  suggestedCategorySlug: CategorySlug | null;
-  /** Minimum variant price — the number the margin applies to by default. */
-  supplierPriceCents: number;
-  /** DistriSex sometimes prints "Precio sugerido" (suggested retail) in the
-   * short description — a real pricing hint from a wholesaler, kept verbatim. */
-  suggestedRetailCents: number | null;
-  /** Woo lists variations without their own prices; when the supplier signals
-   * a price range, promote.ts fetches each variation before writing. */
-  priceVariesByVariant: boolean;
-  options: StagedOption[];
-  specs: { label: string; value: string }[];
-  images: StagedImage[];
-  /** At least one, always — option-less products get the singleton variant. */
-  variants: StagedVariant[];
-};
+// Re-exported so the fetch normalizers and the summary keep their historical
+// import path.
+export type {
+  StagedImage,
+  StagedOption,
+  StagedOptionValue,
+  StagedProduct,
+  StagedVariant,
+} from "../../../src/features/import/staging";
 
 export type StagingFile = {
   formatVersion: number;

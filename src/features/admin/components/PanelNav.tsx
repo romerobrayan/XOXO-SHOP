@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const TABS = [
+  { href: "/admin", label: "Inicio" },
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/productos", label: "Productos" },
+  { href: "/admin/proveedores", label: "Proveedores" },
 ];
 
 export function PanelNav() {
@@ -15,9 +17,14 @@ export function PanelNav() {
 
   return (
     <nav className="border-b border-linea bg-crema">
-      <div className="mx-auto flex w-full max-w-5xl gap-6 px-4">
+      <div className="mx-auto flex w-full max-w-5xl gap-4 overflow-x-auto px-4 sm:gap-6">
         {TABS.map((tab) => {
-          const active = pathname.startsWith(tab.href);
+          // "/admin" would prefix-match every panel route; the home tab only
+          // lights up on itself.
+          const active =
+            tab.href === "/admin"
+              ? pathname === "/admin"
+              : pathname.startsWith(tab.href);
           return (
             <Link
               key={tab.href}

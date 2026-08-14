@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { ArchiveToggle } from "@/features/products/components/ArchiveToggle";
 import { listAdminProducts } from "@/features/products/queries";
 import { formatCOP } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -65,39 +66,46 @@ export default async function ProductosPage() {
             );
             const badge = STATUS_BADGE[product.status];
             return (
-              <li key={product.id}>
+              <li
+                key={product.id}
+                className="grid gap-2 rounded-[4px] border border-linea bg-crema p-4 transition-shadow duration-150 hover:shadow-card sm:grid-cols-[1fr_auto_auto] sm:items-center"
+              >
                 <Link
                   href={`/admin/productos/${product.id}`}
-                  className="grid gap-2 rounded-[4px] border border-linea bg-crema p-4 transition-shadow duration-150 hover:shadow-card sm:grid-cols-[1fr_auto] sm:items-center"
+                  className="grid gap-1"
                 >
-                  <div className="grid gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{product.name}</span>
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                      {available === 0 && product.status === "ACTIVE" ? (
-                        <Badge variant="error">Agotado</Badge>
-                      ) : low ? (
-                        <Badge variant="oro">Poco stock</Badge>
-                      ) : null}
-                    </div>
-                    <span className="text-sm font-light text-suave">
-                      {[product.brand?.name, product.category?.name]
-                        .filter(Boolean)
-                        .join(" · ") || "Sin marca ni categoría"}
-                      {" · "}
-                      {product.variants.length} variante
-                      {product.variants.length === 1 ? "" : "s"}
-                    </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{product.name}</span>
+                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                    {available === 0 && product.status === "ACTIVE" ? (
+                      <Badge variant="error">Agotado</Badge>
+                    ) : low ? (
+                      <Badge variant="oro">Poco stock</Badge>
+                    ) : null}
                   </div>
-                  <div className="grid gap-1 sm:justify-items-end">
-                    <span className="font-semibold text-vino tabular-nums">
-                      {formatCOP(product.minPriceCents)}
-                    </span>
-                    <span className="text-[13px] font-light text-tenue tabular-nums">
-                      {available} disponible{available === 1 ? "" : "s"}
-                    </span>
-                  </div>
+                  <span className="text-sm font-light text-suave">
+                    {[product.brand?.name, product.category?.name]
+                      .filter(Boolean)
+                      .join(" · ") || "Sin marca ni categoría"}
+                    {" · "}
+                    {product.variants.length} variante
+                    {product.variants.length === 1 ? "" : "s"}
+                  </span>
                 </Link>
+                <div className="grid gap-1 sm:justify-items-end">
+                  <span className="font-semibold text-vino tabular-nums">
+                    {formatCOP(product.minPriceCents)}
+                  </span>
+                  <span className="text-[13px] font-light text-tenue tabular-nums">
+                    {available} disponible{available === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="justify-self-start sm:justify-self-end">
+                  <ArchiveToggle
+                    productId={product.id}
+                    status={product.status}
+                  />
+                </div>
               </li>
             );
           })}

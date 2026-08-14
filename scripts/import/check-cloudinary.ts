@@ -10,7 +10,7 @@ import {
   assertCloudinaryConfigured,
   deliveryUrl,
   destroyAsset,
-} from "./lib/cloudinary";
+} from "../../src/lib/cloudinary";
 
 const ONE_PX_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",

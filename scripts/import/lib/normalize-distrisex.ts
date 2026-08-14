@@ -4,7 +4,6 @@
 // `attributes[].has_variations: true` is an axis the customer chooses
 // (ProductOption), `false` is display-only (ProductSpec) — exactly the
 // CLAUDE.md rule. The "Marca" attribute is the brand.
-import type { StagedProduct, StagedVariant } from "./staging";
 import {
   canonicalizeBrand,
   detectBrand,
@@ -13,7 +12,8 @@ import {
   stripHtml,
   suggestCategory,
   wooPriceToCents,
-} from "./normalize";
+} from "../../../src/features/import/normalize";
+import type { StagedProduct, StagedVariant } from "./staging";
 
 export type WooTerm = { id: number; name: string; slug: string };
 
