@@ -62,6 +62,70 @@ export const updateVariantSchema = z.object({
   isActive: z.boolean(),
 });
 
+// ─── Media ──────────────────────────────────────────────────
+// The upload crosses the boundary as FormData (a File does not survive JSON),
+// so the schema owns the unwrapping: Zod still validates every field before
+// the action sees it (CLAUDE.md rule 7).
+
+export const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Mirrored in the client's pre-check so the user reads words, not a failed
+ * request — phone cameras and galleries hand over JPG/PNG/WEBP/HEIC, all of
+ * which Cloudinary ingests. SVG is code, not photography: rejected. */
+export function imageFileProblem(file: {
+  type: string;
+  size: number;
+}): string | null {
+  if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+    return "Solo se aceptan fotos (JPG, PNG, WEBP o HEIC)";
+  }
+  if (file.size > IMAGE_MAX_BYTES) return "La foto supera los 10 MB";
+  return null;
+}
+
+export const uploadProductMediaSchema = z
+  .custom<FormData>((v) => v instanceof FormData, "Envío inválido")
+  .transform((fd, ctx) => {
+    const productId = fd.get("productId");
+    const file = fd.get("file");
+    if (typeof productId !== "string" || productId.length === 0) {
+      ctx.addIssue({ code: "custom", message: "Producto inválido" });
+      return z.NEVER;
+    }
+    if (!(file instanceof File) || file.size === 0) {
+      ctx.addIssue({ code: "custom", message: "Falta la foto" });
+      return z.NEVER;
+    }
+    const problem = imageFileProblem(file);
+    if (problem) {
+      ctx.addIssue({ code: "custom", message: problem });
+      return z.NEVER;
+    }
+    return { productId, file };
+  });
+
+export const moveProductMediaSchema = z.object({
+  productId: z.string().min(1),
+  mediaId: z.string().min(1),
+  direction: z.enum(["up", "down"]),
+});
+
+// ─── Lifecycle ──────────────────────────────────────────────
+
+export const setProductArchivedSchema = z.object({
+  productId: z.string().min(1),
+  archived: z.boolean(),
+});
+
+export const deleteProductSchema = z.object({
+  productId: z.string().min(1),
+});
+
+export const removeProductMediaSchema = z.object({
+  productId: z.string().min(1),
+  mediaId: z.string().min(1),
+});
+
 export const ADJUST_REASONS = ["PURCHASE", "MANUAL_ADJUST", "DAMAGE"] as const;
 
 export const adjustStockSchema = z

@@ -38,7 +38,7 @@ export async function listAdminProducts() {
 }
 
 export async function getAdminProduct(productId: string) {
-  return db.product.findUnique({
+  const product = await db.product.findUnique({
     where: { id: productId },
     select: {
       id: true,
@@ -49,6 +49,17 @@ export async function getAdminProduct(productId: string) {
       supplierRef: true,
       brandId: true,
       categoryId: true,
+      media: {
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          url: true,
+          alt: true,
+          position: true,
+          type: true,
+          posterUrl: true,
+        },
+      },
       options: {
         orderBy: { position: "asc" },
         select: {
@@ -78,10 +89,20 @@ export async function getAdminProduct(productId: string) {
               },
             },
           },
+          _count: { select: { orderItems: true, movements: true } },
         },
       },
     },
   });
+  if (!product) return null;
+  return {
+    ...product,
+    // Whether ANY variant carries history. Real deletion exists only for a
+    // product nobody ever ordered or counted — everything else archives.
+    hasHistory: product.variants.some(
+      (v) => v._count.orderItems > 0 || v._count.movements > 0,
+    ),
+  };
 }
 
 export async function listBrandAndCategoryChoices() {

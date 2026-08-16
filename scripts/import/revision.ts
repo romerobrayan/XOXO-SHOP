@@ -10,8 +10,8 @@
 //   npm run import:revision
 import fs from "node:fs";
 import path from "node:path";
-import { CATEGORIES } from "./lib/config";
-import { computeSalePriceCents } from "./lib/pricing";
+import { CATEGORIES } from "../../src/features/import/config";
+import { computeSalePriceCents } from "../../src/features/import/pricing";
 import { readAllStaged, readSeleccion } from "./lib/staging";
 
 type Row = {

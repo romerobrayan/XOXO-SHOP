@@ -18,7 +18,7 @@ test("la dueña crea un producto con opciones, recibe stock y lo publica", async
   await page.getByLabel("Correo").fill(STAFF_EMAIL);
   await page.getByLabel("Contraseña").fill(STAFF_PASSWORD);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/admin\/pedidos/);
+  await expect(page).toHaveURL(/\/admin$/);
 
   // Create, born as DRAFT with its singleton variant.
   await page.goto("/admin/productos/nuevo");

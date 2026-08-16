@@ -4,7 +4,6 @@
 // prices and SKUs. The gaps are taxonomy (`product_type` is the only category
 // signal) and brand (`vendor` is mostly the Shopify default "My Store", so the
 // brand hides in titles and tags).
-import type { StagedImage, StagedProduct } from "./staging";
 import {
   canonicalizeBrand,
   detectBrand,
@@ -12,7 +11,8 @@ import {
   shopifyPriceToCents,
   stripHtml,
   suggestCategory,
-} from "./normalize";
+} from "../../../src/features/import/normalize";
+import type { StagedImage, StagedProduct } from "./staging";
 
 export type ShopifyVariant = {
   id: number;
