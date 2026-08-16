@@ -44,8 +44,10 @@ test("una asesora entra, ve el pedido y lo mueve hasta enviado", async ({
   await page.getByLabel("Contraseña").fill(STAFF_PASSWORD);
   await page.getByRole("button", { name: "Entrar" }).click();
 
-  // Lands on the order list with the fresh order visible and pending.
-  await expect(page).toHaveURL(/\/admin\/pedidos/);
+  // Lands on the dashboard (Bloque I) — the fresh order already shows there
+  // among the recent ones; the list has the full row.
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto("/admin/pedidos");
   const row = page.getByRole("link", { name: new RegExp(orderNumber) });
   await expect(row).toBeVisible();
   await expect(row).toContainText("Pendiente");

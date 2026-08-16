@@ -17,6 +17,11 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
   testDir: "e2e",
   timeout: 90_000,
+  // One worker, always: every spec shares the same dev server AND the same
+  // local database (admin specs mutate the catalog the checkout spec buys
+  // from), and this Windows filesystem is slow enough that parallel workers
+  // push a cold Turbopack past the test timeout. Serial is the honest mode.
+  workers: 1,
   use: {
     baseURL: BASE_URL,
     launchOptions: process.env.CHROMIUM_PATH

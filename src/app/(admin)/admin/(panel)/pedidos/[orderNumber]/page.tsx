@@ -172,7 +172,11 @@ export default async function PedidoPage({
                 className="flex flex-wrap justify-between gap-2"
               >
                 <span>
-                  {PAYMENT_LABEL[payment.method] ?? payment.method}
+                  {payment.method
+                    ? (PAYMENT_LABEL[payment.method] ?? payment.method)
+                    : // Initiated at the gateway but no event yet — the rail
+                      // (tarjeta, Nequi, PSE) is the gateway's to report.
+                      "En línea · riel por confirmar"}
                   <span className="text-suave"> · {payment.provider}</span>
                 </span>
                 <span className="tabular-nums">

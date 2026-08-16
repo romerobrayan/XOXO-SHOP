@@ -4,18 +4,23 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 11 de agosto de 2026 — sesión "Páginas legales":
-las cuatro páginas legales existen y están enlazadas desde el footer de todo el
-sitio. Era **bloqueante del onboarding de la pasarela**, no deuda cosmética: el
-análisis de riesgo revisa la tienda en vivo. Falta un solo dato para radicar —
-la identificación del responsable (`src/lib/legal.ts`).
+**Última actualización:** 13 de agosto de 2026 — sesión "Bloque I: la clienta
+cura desde el panel". La curaduría completa del catálogo ya no depende de esta
+máquina: fotos de producto que se suben desde el celular o el computador a
+Cloudinary (sin EXIF/GPS en lo que sirve la tienda), el staging de los 1.275
+productos de proveedor viviendo en Postgres y navegable en
+`/admin/proveedores` con **Publicar** corriendo el mismo promote del CLI,
+archivar/restaurar de un toque con borrado real solo para productos sin
+historia, y `/admin` convertido en dashboard de ventas leído directo de la
+base. `CLOUDINARY_URL` ya quedó cargada en Vercel (Production y Preview).
+Pendiente operativo al desplegar: `migrate deploy` + `import:stage -- --neon`
+contra Neon (ver §3).
 
-Antes — 6 de agosto de 2026, sesión "Bloque D desplegado": el panel admin
-completo (pedidos + productos) quedó **mergeado a `main` y corriendo en
-producción**, con la migración `admin_auth` aplicada en Neon, las variables de
-better-auth cargadas en Vercel y la cuenta admin real creada. El login contra
-producción está verificado de punta a punta. También: a partir de ahora el
-trabajo va a la rama **`develop`** y de ahí a `main`.
+Antes — mismo día, sesión "Bloque F: pago en línea": el pago online funciona
+de punta a punta contra el **sandbox real de Wompi**; el webhook idempotente
+marca pagado vía la máquina de estados y la firma de integridad quedó
+confirmada con transacciones reales. Falta un paso que no es código: la
+**URL de eventos en el panel de Wompi** (ver Bloque F).
 
 ---
 
@@ -24,10 +29,10 @@ trabajo va a la rama **`develop`** y de ahí a `main`.
 | Fase                        | Estado                                                                                                                                                                                                |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **0 — Diseño**              | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta                                                                 |
-| **1 — Catálogo**            | **En curso.** Esquema, migración, seed, pipeline de importación (`docs/IMPORT-PROVEEDORES.md`) **y CRUD del panel admin** listos. Falta la curaduría real de la clienta                               |
+| **1 — Catálogo**            | **Herramienta completa (Bloque I).** Esquema, seed, pipeline de importación, CRUD del panel, **fotos desde el panel y curador de proveedores en `/admin/proveedores`**. Lo que falta es que la clienta ejecute su curaduría — ya puede, desde el celular |
 | **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
-| **3 — Pagos**               | No empezada. Existen el puerto `PaymentProvider` y `MockProvider`; los adaptadores esperan cuenta de comercio                                                                                         |
-| **4 — Admin y lanzamiento** | **Bloque D completo y en producción.** El panel autentica con better-auth (migración en Neon, variables en Vercel, cuenta creada), gestiona pedidos con transiciones que escriben al libro, y tiene CRUD de productos con el sistema de opciones y ajuste de stock en dos toques |
+| **3 — Pagos**               | **Implementada contra el sandbox (Bloque F).** Arranque + webhook idempotente + página de retorno, verificados con transacciones reales de prueba. Production sigue en `mock` hasta la aprobación del comercio; falta la URL de eventos en el panel |
+| **4 — Admin y lanzamiento** | **Bloques D e I hechos.** Autenticación better-auth, pedidos con máquina de estados, CRUD de productos con opciones y stock en dos toques, **fotos a Cloudinary desde el panel, curador de proveedores, archivar/restaurar con borrado guardado y dashboard de ventas en `/admin`**. Bloque I espera deploy (migración + staging en Neon + `CLOUDINARY_URL` en Vercel) |
 
 Lo que ya funciona de punta a punta: navegar el catálogo, filtrar por categoría y marca,
 ordenar, abrir un producto, elegir opciones con estados de agotado correctos, agregar a la
@@ -57,6 +62,12 @@ La Postgres local con Docker sigue disponible (`docs/POSTGRES-DOCKER.md`) para
 trabajar sin internet, para iterar rápido —es ~9× más veloz que Neon— y porque
 `prisma migrate dev` necesita una base descartable para **generar** migraciones.
 
+Para entrar al panel en local sin ceremonia: `npm run admin:dev` crea (o
+restablece) la cuenta **admin@secreto.local / Admin123** — solo desarrollo; el
+script se niega contra Neon, en Vercel y con `NODE_ENV=production`, con el
+mismo gesto que el guardarraíl del promote. Las cuentas reales siguen saliendo
+de `admin:create`, que exige 12 caracteres.
+
 **El flujo de migraciones quedó partido en dos:** `migrate dev` contra la local
 para generar la carpeta de migración y commitearla, `migrate deploy` contra Neon
 para aplicarla. Nunca `migrate dev`, `migrate reset` ni `db push` contra Neon.
@@ -70,6 +81,209 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: Bloque I — que la CLIENTA haga la curación completa del catálogo
+desde el panel, desde el celular o el computador por igual.** Hasta hoy, la
+curaduría solo corría en esta máquina (`revision.html` local) y las fotos solo
+entraban por el pipeline. Ahora todo pasa por `/admin`:
+
+- **Fotos de producto desde el panel.** `/admin/productos/[id]` ganó la
+  tarjeta "Fotos": subir (en el celular abre cámara o galería — el input es
+  `accept="image/*"`; en desktop, archivos), reordenar con flechas y quitar
+  con confirmación de dos toques. La subida viaja por Server Action
+  (FormData validada con Zod: solo imágenes, 10 MB máximo,
+  `bodySizeLimit` 15 MB) y aterriza en Cloudinary **server-side** con
+  `public_id` determinista por contenido
+  (`secreto/productos/panel/<sha1(bytes)>`): la misma foto elegida dos veces
+  mapea al mismo asset, jamás duplica. La entrega guarda la transformación de
+  marca (4:5 sobre arena), y **las derivadas no exponen EXIF/GPS**:
+  `media.cloudinary.test.ts` sube contra la cuenta real un JPEG con bloque
+  GPS y verifica que el marker no llega a lo que la tienda sirve. Quitar una
+  foto borra la fila, resecuencia y destruye el asset **solo** si es del
+  namespace del panel y ninguna otra fila lo referencia — los assets de
+  proveedor nunca se tocan (el re-promote depende de ellos). La primera foto
+  es la portada y así lo dice la UI.
+- **El SDK de Cloudinary tiene una sola puerta.** `src/lib/cloudinary.ts` —
+  movido desde `scripts/import/lib/` — es el único módulo que lo importa;
+  pipeline y panel comparten convenciones de `public_id`, transformación y
+  subida (`overwrite: false`). `cloudinary` pasó a `dependencies`: ahora es
+  runtime del panel, no solo tooling.
+- **El staging de proveedores vive en Postgres.** Decisión tomada y
+  documentada (`docs/IMPORT-PROVEEDORES.md`): la tabla
+  `SupplierStagingProduct` guarda los 1.275 productos normalizados (payload
+  completo validado con Zod al leer, `searchText` normalizado para buscar,
+  precio del proveedor como referencia, primera foto para la lista). La
+  alimenta `npm run import:stage` desde los JSON del fetch — idempotente por
+  `supplierRef`, **jamás toca el estado de curaduría en re-corridas**, con el
+  mismo guardarraíl anti-Neon del promote (`--neon` explícito para la base
+  del despliegue). Cargada y verificada en la local con corrida doble
+  (1.275 → 1 created/1.274 updated, 0 duplicados). De paso el staging destapó
+  un caso real: variaciones Woo con atributo "any" (null) — el esquema las
+  tolera, descarta el valor nulo, y el promote bota la variación incompleta
+  con aviso en vez de reventar.
+- **`/admin/proveedores`: el curador.** Lista con búsqueda (sin acentos),
+  filtros por proveedor/categoría/estado (Pendientes/Publicados/Todos, con
+  contadores), foto del proveedor (hotlink **solo** en esta pantalla interna
+  — la tienda jamás), paginación de a 24. El detalle muestra fotos, ficha
+  técnica, variantes con su precio de referencia, el "Precio sugerido" del
+  mayorista cuando existe, y el formulario de publicación: categoría
+  (sugerida por defecto), marca (detectada por defecto), **margen % con
+  vista previa "queda desde…" que respeta las diferencias por variante, o
+  precio manual** — el precio del proveedor nunca es el precio de venta — y
+  stock inicial que entra por el libro. **Publicar** corre
+  `src/features/import/promote-core.ts`: la MISMA normalización del promote,
+  movida de `scripts/import/` a `src/` — el CLI quedó como wrapper delgado
+  sobre el mismo núcleo, cero duplicación. Idempotencia intacta por
+  `supplierRef`: re-publicar refresca nombre/descripción/specs/fotos y **no
+  toca ni el precio que la clienta ajustó ni su stock** (probado contra
+  Postgres en `promote-core.test.ts`). El guardarraíl "--neon solo con
+  aprobación de la clienta" queda satisfecho por diseño: la que aprieta
+  Publicar ES la clienta, con su sesión como firma.
+- **Quitar = archivar.** Botones de un toque en la lista y en el detalle
+  (`Archivar` / `Restaurar` — restaurar devuelve ACTIVE si alguna vez
+  publicó, DRAFT si no). El storefront ya filtraba `ACTIVE` en lista,
+  detalle y contadores de filtros, así que archivar desaparece el producto
+  de la tienda al instante. **Borrado real solo sin historia**: la UI ofrece
+  "Eliminar definitivamente" únicamente cuando el producto no tiene ni
+  OrderItem ni InventoryMovement, y el guard se re-verifica **dentro de la
+  transacción** (`lifecycle.test.ts` lo fija: movimiento → se niega; línea
+  de pedido → se niega). Borrar también regresa a la cola la fila de staging
+  que apuntaba al producto y limpia los assets del panel que quedaron sin
+  referencias.
+- **`/admin` es el dashboard.** Dejó de redirigir. **La definición de venta
+  está escrita en la pantalla y en el código** (`SALE_DEFINITION`): un
+  pedido pagado (en línea o transferencia; `paidAt`) o, en contra entrega,
+  un pedido entregado — la máquina de estados confirma que contra entrega
+  nunca pasa por PAID y cobra en la puerta. Cancelados y reembolsados no
+  cuentan. Muestra: hoy / 7 / 30 días (ventas e ingresos), barras por día
+  (14 días, con tabla `sr-only` para lectores), semanas (8) y meses (6) —
+  todo `date_trunc` **en hora de Bogotá**, no UTC —, top 5 desde los
+  snapshots de `OrderItem`, pedidos recientes con su estado y contadores de
+  abiertos, y stock bajo (disponible = onHand − reservado ≤ umbral, solo
+  variantes activas de productos activos). Cero Firebase, cero GA, cero
+  trackers: la política publicada lo prohíbe y la analítica sale de la base
+  (`metrics.test.ts` fija la definición con los cuatro casos). El login
+  ahora aterriza en `/admin` y la pestaña "Inicio" existe en el nav.
+- **Ambos dispositivos.** Todas las pantallas nuevas revisadas a 375px y
+  desktop en navegador real: cero overflow horizontal, tarjetas en vez de
+  tablas, botones de 36–44px, el nav del panel con scroll horizontal si no
+  cabe. El patrón de referencia sigue siendo el ajuste de stock en dos
+  toques.
+- **Migración `bloque_i_staging_proveedores_y_media_unica`** — generada
+  contra la local (con `migrate diff`, el flujo documentado) y aplicada:
+  tabla de staging + `@@unique([productId, url])` en `ProductMedia` (la
+  invariante que el import mantenía a mano, ahora la sostiene la base bajo
+  concurrencia). **Pendiente de `migrate deploy` contra Neon al desplegar.**
+
+**Verificación.** Suite completa de vitest contra la Postgres local de Docker
+(las 142 previas más las nuevas de medios, promote-core, lifecycle y
+dashboard — ninguna saltada), `tsc` y lint limpios, y los e2e con
+`E2E_PORT=3100`: los 5 previos más (a) crear producto con foto desde el panel
+→ verla en `/tienda` (subida REAL a Cloudinary), (b) archivar → desaparece de
+la tienda y su URL deja de resolver, (c) sembrar un producto en staging →
+curarlo con precio manual → verlo publicado en `/tienda` con ese precio.
+
+**Para desplegar el Bloque I** (en orden, después del merge):
+
+1. `npx prisma migrate deploy` contra Neon (aditiva: tabla de staging +
+   unique de media).
+2. ~~`CLOUDINARY_URL` en Vercel~~ ✅ **hecha en esta sesión** — Production y
+   Preview, marcada sensible (verificada con `vercel env ls`). Sin ella el
+   panel desplegado no podría subir fotos ni publicar del staging.
+3. `npm run import:stage -- --neon` para que la clienta tenga los 1.275 en
+   su curador.
+
+---
+
+### Sesión anterior — 13 de agosto de 2026 — Bloque F: pago en línea
+
+**Objetivo: Bloque F — que "Transferencia o tarjeta" cobre de verdad.** Todo
+lo que faltaba entre el adaptador puro de la sesión pasada y un pago que entra:
+el arranque, el webhook y la verificación contra el sandbox con las llaves
+`pub_test_` de la cuenta real de prueba.
+
+- **El arranque del pago.** `createOrder` con `paymentMethod=ONLINE` construye
+  el enlace firmado de Web Checkout, escribe la fila `Payment`
+  (`PENDING`, `method` **null** — el riel lo elige el comprador dentro de Wompi
+  y solo el evento lo sabe) y devuelve `checkoutUrl`; `CheckoutFlow` vacía la
+  bolsa y redirige. La referencia es el número de pedido, así que un reintento
+  con la misma `idempotencyKey` **re-deriva el mismo enlace byte a byte**
+  (upsert por `providerReference`, cero filas duplicadas). El proveedor se
+  construye antes de crear el pedido: un despliegue sin llaves falla antes de
+  reservar stock, no después.
+- **La reserva online con pasarela real dura 30 minutos** (la promesa que el
+  Bloque C dejó anotada), y el enlace lleva `expiration-time` firmado con el
+  **mismo instante**: pagar una reserva que el barrido ya liberó se vuelve
+  imposible del lado de Wompi, no solo del nuestro. Con el mock no hay
+  redirect real y la ventana sigue en 72 h (asesora por WhatsApp).
+- **El webhook dejó de ser un TODO.** La ruta verifica la firma (adaptador) y
+  delega en `applyPaymentEvent` (`src/features/orders/payment-events.ts`):
+  con `APPROVED`, el pedido pasa `PENDING→PAID` **a través de la máquina de
+  estados**, vía un ejecutor nuevo y compartido
+  (`src/features/orders/apply-transition.ts`) que también usa el panel — CAS
+  sobre el estado visto, timestamps y efecto de inventario en un solo lugar.
+  **El webhook no llama `commitSale`, deliberadamente:** la máquina declara
+  `PENDING→PAID` con efecto `none`, y `transitions.test.ts` fija la invariante
+  *"consumes the reservation only when shipping"* — el stock se compromete
+  **una sola vez**, en `PROCESSING→SHIPPED`, por el camino del panel ya
+  probado. Un commit en el webhook rompería "Marcar enviado" (doble commit) y
+  "Cancelar" (liberar sin reserva) para todo pedido pagado en línea.
+- **Idempotencia sin tabla de dedupe: dos CAS.** `APPROVED` es terminal en
+  `Payment` (toda escritura va guardada por `status != APPROVED`), y el flip
+  del pedido es el mismo `updateMany` condicional del panel y el barrido.
+  Eventos duplicados, concurrentes o fuera de orden actualizan cero filas y
+  se van. El caso feo — plata que llega cuando el barrido ya canceló — se
+  registra en el `Payment` (la plata se movió), **no toca stock** y deja log
+  fuerte para conciliación humana.
+- **Página de retorno `/checkout/gracias`** (el `redirect-url` del enlace):
+  confirmando (se refresca sola mientras llega el evento), confirmado,
+  rechazado —con "Reintentar el pago", que re-deriva el mismo enlace—,
+  expirado, pago-tras-expirar y registrado (mock). Muestra número de pedido y
+  total, nunca un dato personal: el número es la capacidad, como al citarlo
+  por WhatsApp. Wompi documenta que el redirect no confirma nada; acá solo se
+  lee lo que el webhook haya escrito.
+- **Migración `payment_method_nullable`** (`method` de `Payment` admite null
+  hasta que el evento diga el riel): generada contra la local, **aplicada en
+  Neon** con `migrate deploy`. El panel muestra "En línea · riel por
+  confirmar" mientras tanto, y el riel real (CARD/NEQUI/PSE…) lo escribe el
+  evento.
+- **142 pruebas, todas corriendo contra Postgres local** (las 26 que se
+  saltaban sin base, incluidas). Nuevas: 8 de `payment-events` — 8 entregas
+  concurrentes del mismo evento producen **un solo** `order_paid`; el flujo
+  completo webhook→preparar→enviar descuenta stock **exactamente una vez** y
+  el libro reconcilia; `DECLINED` tardío no regresa un pago aprobado; plata
+  tras cancelación no toca el libro — 3 del arranque online en
+  `actions.test.ts` (fila escrita, enlace idéntico en reintento, contra
+  entrega intacta) y 2 del adaptador (firma con expiración contra digest de
+  `sha256sum`, extracción del riel). e2e: 5/5, con el pago online llegando
+  hasta el redirect con el enlace firmado completo.
+- **Sandbox verificado con la cuenta real de prueba ("SECRETO BTQ" — ya
+  existe, con el descriptor propuesto).** `checkout.wompi.co` devuelve 403 de
+  CloudFront a los navegadores de esta máquina (WAF de Wompi; `curl` sí
+  pasa), así que la verificación fue por la **API pública del sandbox — las
+  mismas tres llamadas que el widget hace por dentro**, donde una firma
+  equivocada muere con 422: transacción creada con la firma exacta del
+  adaptador (con `expiration-time` incluido en la cadena), 4242 aprobó, 4111
+  rechazó, y el reintento sobre la misma referencia aprobó. El webhook local
+  procesó eventos construidos con esas transacciones reales y firmados con el
+  **secreto de eventos real**: aprobado → `PAID` con riel `CARD` y payload
+  guardado; duplicado → no-op; `DECLINED` fuera de orden → no regresa nada.
+- Operativo: la cabecera de `wompi.ts`, la factory y `.env.example` ahora
+  dicen la verdad nueva (verificado 2026-08-13, y qué falta). La base local
+  quedó en estado demo (`prisma db seed` tras las compras de prueba).
+
+**Lo que queda del Bloque F no es código nuestro:** registrar la **URL de
+eventos** en el panel de Wompi (Desarrollo → Programadores → URL de Eventos,
+modo prueba) apuntando a un despliegue público
+(`https://<host>/api/webhooks/wompi`) para que Wompi entregue él mismo — el
+formato del evento y el checksum ya están probados con el secreto real. Para
+probarlo en un preview de Vercel: llaves `pub_test_` y
+`PAYMENT_PROVIDER=wompi` **solo en Preview**. Production sigue en `mock` hasta
+la aprobación del comercio, con llaves `prod_` y su URL de eventos propia.
+
+---
+
+### Sesión anterior — 11 de agosto de 2026 — Páginas legales y adaptador Wompi
 
 **Objetivo: sacar las páginas legales de la ruta crítica de la pasarela.** La
 clienta ya tiene sus documentos listos para radicar en Wompi, y el ADR 002 deja
@@ -610,6 +824,18 @@ local: `BETTER_AUTH_URL` tiene que coincidir con el origen real (el dev server
 propio corre en 3001) o la cookie de sesión se emite para otro host y el login
 entra en bucle sin error.
 
+### Bloque I — La clienta cura desde el panel ✅ hecho (2026-08-13)
+
+Fotos de producto desde el panel (celular y desktop) a Cloudinary con
+`public_id` por contenido y derivadas sin EXIF; staging de proveedores en
+Postgres (`SupplierStagingProduct` + `npm run import:stage`); curador en
+`/admin/proveedores` cuyo **Publicar** corre el mismo
+`src/features/import/promote-core.ts` que el CLI; archivar/restaurar de un
+toque con borrado real solo sin historia (guard en transacción); dashboard de
+ventas en `/admin` con la definición de venta visible. Detalle completo en §3.
+`CLOUDINARY_URL` ya está en Vercel. **Espera deploy:** `migrate deploy` en
+Neon y `import:stage -- --neon`.
+
 ### Bloque E — Fotografía y Cloudinary 🔄 desbloqueado a medias
 
 Cloudinary está **activo y cableado**: el pipeline de importación re-hospeda
@@ -623,25 +849,30 @@ lencería sin foto usable y para el video, que el modelo ya soporta con
 
 `scripts/import/` + `docs/IMPORT-PROVEEDORES.md`. Staging completo de los dos
 proveedores (1.275 productos), curaduría visual (`import:revision`), promote
-idempotente con guardarraíl anti-Neon. Abierto: la **curaduría real** de la
-clienta (hoy hay 14 productos de demostración en `seleccion.json`) y el
-**margen por categoría**. Cuando ella apruebe: `npm run import:promote -- --neon`.
+idempotente con guardarraíl anti-Neon. **El Bloque I movió el núcleo del
+promote a `src/features/import/` y puso la curaduría en `/admin/proveedores`**
+— la clienta ya no necesita esta máquina ni `seleccion.json` para publicar
+(el CLI sigue vivo para lotes). Abierto: que ella **ejecute** su curaduría y
+decida el **margen por categoría** (los defaults del panel son los de
+trabajo: +50 % DistriSex, +0 % Climax).
 
-### Bloque F — Pagos 🔄 adaptador escrito, sin verificar contra el sandbox
+### Bloque F — Pagos 🔄 verificado contra el sandbox; Production espera el comercio
 
-Depende de la aprobación de la cuenta de comercio, que es calendario, no código. Ver
+La aprobación de la cuenta de comercio sigue siendo calendario, no código. Ver
 `docs/decisions/001-payment-provider.md` y, para la comparación completa,
 **`docs/decisions/002-pasarela-wompi-vs-payu.md`**.
 
-**Estado al 11 de agosto de 2026:**
+**Estado al 13 de agosto de 2026:**
 
 | Pieza                                   | Estado                                                                                                       |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Puerto `PaymentProvider` + `MockProvider` | ✅ desde Fase 0                                                                                              |
-| Adaptador Wompi (firma, checksum, estados) | 🔄 escrito y con 15 pruebas, **sin correr contra el sandbox** — ver §3                                       |
-| `case "wompi"` en la factory + `.env.example` | ✅                                                                                                          |
-| Transición del pedido en el webhook     | ⬜ sigue siendo el `TODO(sprint-4)`. Muta stock y escribe al libro: necesita una sesión con base de datos    |
-| Cuenta de comercio                       | ⬜ lista para radicar en cuanto se llene `RESPONSABLE` y se despliegue                                       |
+| Adaptador Wompi (firma, checksum, estados) | ✅ **verificado contra el sandbox** — firma de integridad (con expiración) confirmada con transacciones reales; ver §3 |
+| Arranque del pago (`createOrder` → enlace firmado → redirect) | ✅ con reserva de 30 min y enlace que expira con ella                                       |
+| Transición del pedido en el webhook     | ✅ `PENDING→PAID` vía la máquina de estados, idempotente bajo concurrencia; el stock se compromete al enviar, una sola vez |
+| Página de retorno `/checkout/gracias`   | ✅ confirmando / confirmado / rechazado con reintento / expirado / registrado                                |
+| URL de eventos en el panel de Wompi     | ⬜ **el único paso técnico restante** — Desarrollo → Programadores, modo prueba, apuntando a `https://<host>/api/webhooks/wompi`; llaves de prueba solo en Preview |
+| Cuenta de comercio                       | ⬜ existe en modo prueba ("SECRETO BTQ"); lista para radicar en cuanto se llene `RESPONSABLE` y se despliegue |
 | Descriptor `SECRETO BTQ`                 | ⬜ se confirma con la pasarela en el onboarding                                                              |
 
 **Lo que cambió (agosto 2026):** se compararon PayU y Wompi en precio, liquidación,
@@ -716,9 +947,15 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Correo de confirmación de pedido             | El pedido se confirma en pantalla y por WhatsApp; no hay email transaccional todavía (Resend, Fase 2). Cuando exista: remitente y asunto neutros, sin nombres de producto (regla 2)                                                        |
 | ~~Admin a medias~~ ✅                         | Saldada: Bloque D completo y en producción — pedidos y productos, con el ajuste de stock escribiendo al libro. Ver Bloque D                                                                                                                |
 | CI de `main` sin re-correr                   | El merge de Bloque D entró durante un outage mayor de GitHub Actions (el job nunca obtuvo runner). Re-correr el workflow de `main` cuando pase, o dejar que el siguiente push lo cubra — el código está verificado en local               |
-| Pago en línea sin registrar en el pedido     | `createOrder` solo escribe una fila `Payment` para contra entrega, que es el único método conocido en el checkout. Con `ONLINE` la pasarela elige el riel y su webhook escribe la fila (Bloque F); hasta entonces el panel muestra "la pasarela todavía no registra un intento" |
+| ~~Pago en línea sin registrar en el pedido~~ ✅ | Saldada en Bloque F: el arranque escribe la fila `Payment` (`method` null hasta que el evento reporte el riel) y el webhook la resuelve. Ver §3                                                                                                                                |
+| URL de eventos de Wompi sin registrar        | El webhook está probado con eventos firmados con el secreto real, pero Wompi solo entrega a la URL cargada en su panel (Desarrollo → Programadores, modo prueba): `https://<host>/api/webhooks/wompi`. Sin eso, los pedidos online quedan `PENDING` hasta que una asesora los marque. Para probar en Vercel: llaves `pub_test_` y `PAYMENT_PROVIDER=wompi` **solo en Preview** |
 | Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
-| Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho                                                             |
+| Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho — ahora editable desde el panel, y el formulario ya lo recuerda con su hint                                                             |
+| Bloque I sin desplegar                       | Todo verificado en local y `CLOUDINARY_URL` ya cargada en Vercel. Para que la clienta lo use de verdad faltan dos pasos post-merge: `migrate deploy` en Neon (aditiva) y `npm run import:stage -- --neon`. Ver §3                                                                                                       |
+| Video de producto sin flujo de subida        | `ProductMedia` soporta VIDEO con `posterUrl` y el panel lo mostraría, pero la subida del panel acepta solo imágenes (un video excede el presupuesto de una Server Action). Cuando haya videos reales: subida firmada directa a Cloudinary o límite mayor, con posterUrl generado                                        |
+| Foto por color sin gesto en el panel         | `ProductMedia.optionValueId` existe y el import lo escribe (fotos Shopify atadas a color), pero el gestor de fotos del panel no ofrece asignar una foto a un valor de opción. Se agrega cuando la clienta lo pida                                                                                                       |
+| Staging huérfano tras seed local             | `prisma db seed` borra productos y deja filas de staging PUBLISHED apuntando a nada (FK en null). Solo pasa en la local; `import:stage` re-alinea y el curador lo muestra como publicado sin enlace. Cosmético                                                                                                          |
+| Assets de Cloudinary best-effort al borrar   | Quitar foto / borrar producto destruye el asset del panel solo si nada lo referencia, y un fallo de red deja un huérfano (se loguea). Costo: almacenamiento, nunca correctitud                                                                                                                                          |
 | Curaduría y margen: decisión de negocio      | `seleccion.json` trae 14 productos de demostración y márgenes de trabajo (+50 % DistriSex, +0 % Climax). La clienta decide el subconjunto real (con `revision.html`) y el margen por categoría — ver §6                                   |
 | Enmienda de movimiento sin aprobar           | El escaparate del héroe y la entrada escalonada extienden el spec de movimiento del handoff (que solo define hovers de 150–200 ms). Valores en `globals.css` como `--motion-*`; se aprueban con la Fase 0 o se apagan quitando dos clases |
 | ~~Páginas legales inexistentes~~ ✅           | Saldada (2026-08-11): las cuatro existen bajo `/legal/` y están enlazadas desde el footer de todo el sitio. El retracto quedó dicho con precisión —el art. 47 de la Ley 1480 excluye los bienes de uso personal— sin tocar la garantía legal. Ver §3                                                                                     |
@@ -743,10 +980,11 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 Estas bloquean decisiones técnicas, no son de diseño. La lista completa está en el spec
 §11; estas son las que bloquean el trabajo inmediato:
 
-1. **Curaduría del catálogo** — sentarse con `data/import/revision.html`
-   (generarla con `npm run import:revision`) y marcar qué vende de los 1.275
-   productos de los proveedores. El permiso de los proveedores ya está resuelto;
-   las fotos ya fluyen solas.
+1. **Curaduría del catálogo** — ya no exige sentarse con nadie: entra a
+   `/admin/proveedores` (desde el celular si quiere) y publica lo que vende
+   de los 1.275, con su precio. El permiso de los proveedores ya está
+   resuelto; las fotos fluyen solas al publicar. Solo falta que el Bloque I
+   esté desplegado (§3) y contarle que existe.
 2. **Margen por categoría** — los defaults (+50 % DistriSex, +0 % Climax) son
    de trabajo. Con su número real, `pricing.marginPct` en
    `scripts/import/seleccion.json` y listo.

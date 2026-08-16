@@ -1,14 +1,15 @@
 // Render-time Cloudinary delivery-transform swap. ProductMedia.url is
 // immutable once stored — the import pipeline keys idempotency on the exact
-// URL (scripts/import/promote.ts reuses assets by URL match) — so the card
-// crop is applied at render time, never persisted.
+// URL (promote reuses assets by URL match) — so the card crop is applied at
+// render time, never persisted.
 //
-// Stored format, written by scripts/import/lib/cloudinary.ts deliveryUrl():
+// Stored format, written by src/lib/cloudinary.ts deliveryUrl():
 //   https://res.cloudinary.com/<cloud>/image/upload/<PAD_TRANSFORM>/v1/<id>
 
-/** Mirror of BRAND_TRANSFORM in scripts/import/lib/cloudinary.ts. Duplicated
- * on purpose: importing that module would pull the cloudinary SDK into the
- * app. cloudinary-url.test.ts pins the string so drift fails loudly. */
+/** Mirror of BRAND_TRANSFORM in src/lib/cloudinary.ts. Duplicated on
+ * purpose: this module reaches client components, and importing the SDK
+ * module there would drag cloudinary into the client bundle.
+ * cloudinary-url.test.ts pins the string so drift fails loudly. */
 const PAD_TRANSFORM = "c_pad,ar_4:5,b_rgb:F1E7D8,f_auto,q_auto";
 
 /** Cards crop-to-fill: subject-centered 4:5, no arena letterbox. The gallery

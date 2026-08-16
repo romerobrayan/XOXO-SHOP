@@ -16,7 +16,7 @@ export default async function PanelLayout({
     <div className="flex min-h-full flex-1 flex-col bg-marfil">
       <header className="border-b border-linea bg-crema">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/admin/pedidos" className="logo-wordmark text-[15px]">
+          <Link href="/admin" className="logo-wordmark text-[15px]">
             SECRETO
           </Link>
           <div className="flex items-center gap-4">

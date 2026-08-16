@@ -4,8 +4,8 @@
 //
 //   npm run import:distrisex            full catalog (~900 products, 9 pages)
 //   npm run import:distrisex -- --limit 50    smoke test
-import { SUPPLIERS } from "./lib/config";
-import { fetchJsonWithHeaders } from "./lib/http";
+import { SUPPLIERS } from "../../src/features/import/config";
+import { fetchJsonWithHeaders } from "../../src/features/import/http";
 import {
   normalizeDistrisex,
   type WooProduct,

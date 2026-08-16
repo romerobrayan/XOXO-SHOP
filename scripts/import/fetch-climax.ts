@@ -4,8 +4,8 @@
 //
 //   npm run import:climax               full catalog (~376 products, 2 pages)
 //   npm run import:climax -- --limit 50       smoke test
-import { SUPPLIERS } from "./lib/config";
-import { fetchJson } from "./lib/http";
+import { SUPPLIERS } from "../../src/features/import/config";
+import { fetchJson } from "../../src/features/import/http";
 import { normalizeClimax, type ShopifyProduct } from "./lib/normalize-climax";
 import { rawPath, writeJson, writeStaging } from "./lib/staging";
 import { summarizeStaging } from "./lib/summary";

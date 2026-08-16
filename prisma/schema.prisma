@@ -66,6 +66,8 @@ model Product {
   updatedAt   DateTime  @updatedAt
   publishedAt DateTime?
 
+  stagedSources SupplierStagingProduct[]
+
   @@index([status, publishedAt])
   @@index([categoryId])
   @@index([brandId])
@@ -185,12 +187,76 @@ model ProductMedia {
   alt       String
   position  Int    @default(0)
 
+  // One row per delivery URL within a product — the invariant the import
+  // always kept by hand; the panel's content-addressed uploads lean on the
+  // database enforcing it under concurrency.
+  @@unique([productId, url])
   @@index([productId, position])
 }
 
 enum MediaType {
   IMAGE
   VIDEO
+}
+
+// ─── Supplier staging (Bloque I) ────────────────────────────
+//
+// Everything the two suppliers publish, normalized to the staging shape,
+// living where the DEPLOYED panel can read it: the owner curates in
+// /admin/proveedores and only "Publicar" touches the real catalog. Fed by
+// the import scripts (fetch → npm run import:stage); the full normalized
+// product travels in `payload` and is Zod-validated on read. This is
+// internal working material — the storefront never queries this table.
+
+model SupplierStagingProduct {
+  id          String @id @default(cuid())
+  supplierRef String @unique // "distrisex:99363" | "climax:liguero-lucy-rojo"
+  supplier    String // "distrisex" | "climax"
+
+  name  String
+  brand String?
+
+  suggestedCategorySlug String?
+
+  // Reference data, never the sale price: DistriSex publishes wholesale and
+  // Climax is a retail competitor. The sale price is decided at publish time.
+  supplierPriceCents   Int
+  suggestedRetailCents Int?
+  priceVariesByVariant Boolean @default(false)
+
+  optionCount Int     @default(0)
+  imageCount  Int     @default(0)
+  // First supplier image, hotlinked ONLY inside the panel while curating —
+  // published products always re-host on Cloudinary instead.
+  previewImageUrl String?
+  // Supplier availability at fetch time — reference only.
+  available Boolean @default(true)
+
+  // The complete StagedProduct (src/features/import/staging.ts), validated
+  // with stagedProductSchema before any promote reads it.
+  payload Json
+
+  // normalizeKey(name + brand + supplier categories) — what search matches.
+  searchText String
+
+  fetchedAt DateTime
+  status    StagingStatus @default(PENDING)
+
+  publishedProductId String?
+  publishedProduct   Product?  @relation(fields: [publishedProductId], references: [id], onDelete: SetNull)
+  publishedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplier, status])
+  @@index([status, suggestedCategorySlug])
+  @@index([publishedProductId])
+}
+
+enum StagingStatus {
+  PENDING
+  PUBLISHED
 }
 
 // ─── Inventory ──────────────────────────────────────────────
@@ -362,10 +428,14 @@ model Payment {
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   provider          String // "wompi" | "payu" | "mock" — never "stripe", see spec §2
-  providerReference String?       @unique
-  method            PaymentMethod
-  status            PaymentStatus @default(PENDING)
-  amountCents       Int
+  providerReference String? @unique
+  // Null between initiating an ONLINE payment and its first webhook: the
+  // gateway's checkout picks the actual rail (CARD / PSE / NEQUI…) and only
+  // the event knows it. Contra entrega and manual transfer set it at creation.
+  method PaymentMethod?
+  status PaymentStatus  @default(PENDING)
+
+  amountCents Int
 
   rawPayload Json? // full provider response, for reconciliation and disputes
 

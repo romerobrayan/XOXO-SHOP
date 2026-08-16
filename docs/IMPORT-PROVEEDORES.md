@@ -6,13 +6,33 @@ el runbook del pipeline que los trae al modelo del proyecto.
 
 **El principio que ordena todo: curaduría antes que volcado.** Los proveedores
 publican 1.275 productos; la clienta vende un subconjunto. El pipeline baja
-todo a un área de *staging* (archivos JSON git-ignored), la selección se hace
-sobre esa staging, y solo lo aprobado toca el catálogo real.
+todo a un área de *staging*, la selección se hace sobre esa staging, y solo lo
+aprobado toca el catálogo real.
+
+**Desde el Bloque I la curaduría vive en el panel.** El staging se carga a una
+tabla de Postgres (`SupplierStagingProduct`) que el despliegue puede leer, y
+la clienta navega, pone precio y publica desde `/admin/proveedores` — desde el
+celular o el computador. El botón **Publicar** corre exactamente la misma
+normalización que el promote del CLI (`src/features/import/promote-core.ts`,
+una sola fuente), así que el contrato de idempotencia de abajo aplica igual
+por los dos caminos. El guardarraíl que exigía `--neon` "solo tras aprobación
+de la clienta" queda satisfecho por diseño: la que aprieta Publicar **es** la
+clienta.
 
 ```
-fetch  →  data/import/staging-*.json  →  revisión (HTML local)  →  seleccion.json  →  promote
-          (todo el proveedor)             (la clienta marca)       (commiteado)        (solo lo aprobado)
+fetch  →  data/import/staging-*.json  →  import:stage  →  tabla SupplierStagingProduct
+          (todo el proveedor)                              (la base que ve el panel)
+                                                                 │
+                     /admin/proveedores (búsqueda, filtros, foto, margen o precio manual)
+                                                                 │
+                                                            "Publicar"
+                                                                 │
+                                              promote-core → catálogo real + Cloudinary
 ```
+
+La ruta vieja sigue existiendo para operar por consola: `import:revision`
+genera el HTML local, `seleccion.json` se commitea y `import:promote` publica
+en lote. CLI y panel comparten el mismo núcleo.
 
 ---
 
@@ -47,9 +67,16 @@ npm run import:check          # preflight Cloudinary: sube un pixel, lo entrega
                               #   transformado, lo borra. Corre esto antes de un lote.
 npm run import:distrisex      # baja y normaliza → data/import/staging-distrisex.json
 npm run import:climax         # ídem → data/import/staging-climax.json
-npm run import:revision       # genera data/import/revision.html (curaduría visual)
-npm run import:promote        # SOLO lo aprobado → Cloudinary + base LOCAL
+npm run import:stage          # staging JSON → tabla SupplierStagingProduct (LOCAL)
+npm run import:stage -- --neon  # ídem contra Neon: lo que el panel desplegado curará
+npm run import:revision       # genera data/import/revision.html (curaduría visual CLI)
+npm run import:promote        # SOLO lo aprobado en seleccion.json → Cloudinary + base LOCAL
 ```
+
+`import:stage` es idempotente por `supplierRef` y **nunca toca el estado de
+curaduría** en re-corridas: re-bajar el proveedor y re-cargar no des-publica
+nada. Filas que el proveedor dejó de publicar se reportan y se conservan. Un
+producto del staging inválido se salta con aviso, no tumba la carga.
 
 Todo corre con `tsx`; nada de esto es una capa REST (regla de CLAUDE.md — los
 Server Actions siguen siendo la única interfaz de la app). Los fetch aceptan
@@ -58,30 +85,46 @@ Server Actions siguen siendo la única interfaz de la app). Los fetch aceptan
 
 ## 3. El flujo de selección
 
+**El camino de la clienta — el panel** (`/admin/proveedores`, Bloque I):
+
+1. Cargar el staging donde el panel lo lea: `npm run import:stage` (local) o
+   `npm run import:stage -- --neon` (el panel desplegado).
+2. En el panel: buscar o filtrar por proveedor/categoría/estado entre los
+   1.275, abrir un producto, revisar fotos, ficha y precios de referencia.
+3. Fijar el precio de venta — margen sobre el proveedor (con vista previa y
+   por variante) o precio manual — más categoría, marca y stock inicial.
+4. **Publicar.** Las fotos se descargan del proveedor y se rehospedan en
+   Cloudinary con la transformación de marca en ese momento; el producto nace
+   `ACTIVE` en la tienda. Volver a publicar refresca datos del proveedor sin
+   tocar ni el precio ni el stock de la clienta.
+
+**El camino por consola** (sigue vivo, mismo núcleo):
+
 1. `npm run import:revision` y abrir `data/import/revision.html` en el
-   navegador. Es una página local autocontenida con los 1.275 productos:
-   foto, nombre, precio del proveedor, precio de venta propuesto, filtros por
-   proveedor/categoría/búsqueda.
-2. Marcar "Vender en SECRETO" en lo que la clienta realmente vende. Ajustar
-   ahí mismo precio, categoría, marca o stock inicial si hace falta.
-3. "Exportar selección" → copia el array `approved` → pegarlo en
-   `scripts/import/seleccion.json` (ese archivo **sí** se commitea: es la
-   decisión de curaduría).
+   navegador — la página local autocontenida con foto, precio del proveedor,
+   precio propuesto y filtros.
+2. Marcar "Vender en SECRETO", ajustar precio/categoría/marca/stock.
+3. "Exportar selección" → pegar el array `approved` en
+   `scripts/import/seleccion.json` (ese archivo **sí** se commitea).
 4. `npm run import:promote`.
 
-La página muestra las fotos hotlinkeadas del proveedor **solo para curar** —
-es una herramienta local git-ignored. La tienda jamás hotlinkea: lo aprobado
-se re-hospeda en Cloudinary.
+Tanto la página de revisión como el curador del panel muestran las fotos
+hotlinkeadas del proveedor **solo para curar** — el panel exige sesión de
+staff y el staging jamás se expone en el storefront. La tienda no hotlinkea
+nunca: lo publicado se re-hospeda en Cloudinary.
 
 ## 4. Precios
 
 El precio del proveedor se guarda como **referencia** (`supplierPriceCents` en
-staging), nunca como precio de venta. El precio de venta sale de
-`seleccion.json`:
+staging), nunca como precio de venta. El precio de venta lo decide la clienta:
 
-- `salePriceCOP` por producto (pesos completos) — gana siempre; o
-- `pricing.marginPct` por proveedor sobre el precio del proveedor, redondeado
-  **hacia arriba** a `roundUpToCOP`.
+- **En el panel:** margen % editable (con vista previa "queda desde…"; cada
+  variante conserva su diferencia de precio) o precio manual que aplica a
+  todas las variantes. Los defaults del margen viven en `DEFAULT_PRICING`
+  (`src/features/import/pricing.ts`).
+- **En seleccion.json (CLI):** `salePriceCOP` por producto (pesos completos)
+  — gana siempre; o `pricing.marginPct` por proveedor, redondeado **hacia
+  arriba** a `roundUpToCOP`.
 
 Defaults de trabajo: DistriSex +50 % (mayorista → retail), Climax +0 %
 (igualar la vitrina del competidor). **El margen real por categoría es una
@@ -126,11 +169,15 @@ La clave es `Product.supplierRef`, namespaced: `distrisex:<id-woo>` /
 
 ## 7. Bases de datos — el guardarraíl
 
-El promote corre **contra la local de Docker** por defecto
+El promote y el stage corren **contra la local de Docker** por defecto
 (`docker compose up -d --wait` primero). Si la URL resuelta apunta a
-`neon.tech` sin `--neon`, **se niega**. `--neon` es para un solo momento: la
-staging aprobada por la clienta, lista para publicarse en la base que ve el
-despliegue.
+`neon.tech` sin `--neon`, **se niegan**. Para `import:stage`, `--neon` es
+rutina inofensiva: solo escribe la tabla de staging (material de trabajo del
+panel), nunca el catálogo. Para `import:promote`, `--neon` sigue siendo el
+momento de publicar en lote lo aprobado — y desde el Bloque I casi nunca hace
+falta: **la clienta publica una a una desde `/admin/proveedores`**, que
+escribe en la base que el despliegue ya está viendo, con su propia sesión
+como firma.
 
 Publicar a Neon también se puede **sin la máquina local**: el workflow manual
 "Promote catalog to Neon" (`.github/workflows/promote-catalogo.yml`) baja el

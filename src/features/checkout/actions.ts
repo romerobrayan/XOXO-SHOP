@@ -3,20 +3,26 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { actionClient } from "@/lib/safe-action";
+import { getPaymentProvider } from "@/payments";
 import { releaseExpiredReservations } from "./expiry";
 import { generateOrderNumber } from "./order-number";
+import { initiateOnlinePayment } from "./payment-initiation";
 import { createOrderSchema } from "./schemas";
 import { SHIPPING_CENTS } from "./shipping";
 import { OutOfStockError, reserveStock } from "./stock";
 
 // Reservation windows, in hours. Contra entrega follows spec §6.4 option 2
 // (72h, auto-release; the client's real no-show rate tunes this later).
-// ONLINE also runs 72h for now: with PAYMENT_PROVIDER=mock an advisor
-// coordinates payment over WhatsApp, exactly like manual transfer. Bloque F
-// drops it to 30 minutes when a real gateway redirect exists.
+// ONLINE through a real gateway redirect holds for 30 minutes — the buyer is
+// mid-payment or gone, and the link itself expires at the same instant
+// (createPayment's expiresAt), so the gateway refuses money for released
+// stock. With PAYMENT_PROVIDER=mock there is no real redirect: an advisor
+// coordinates payment over WhatsApp, exactly like manual transfer, so the
+// mock keeps the contra entrega window.
 const RESERVATION_HOURS = {
   CASH_ON_DELIVERY: 72,
-  ONLINE: 72,
+  ONLINE_GATEWAY: 0.5,
+  ONLINE_MOCK: 72,
 } as const;
 
 // Expected outcomes travel in the typed result; only genuine bugs use the
@@ -29,7 +35,10 @@ export type LineConflict = {
 };
 
 export type CreateOrderResult =
-  | { ok: true; orderId: string; orderNumber: string }
+  // checkoutUrl is present exactly when the customer still owes an online
+  // payment: the UI's next move is to send them there. Absent for contra
+  // entrega and for retries that find the order already past PENDING.
+  | { ok: true; orderId: string; orderNumber: string; checkoutUrl?: string }
   // DATABASE_URL unset — the fixtures-only preview. The bag works, orders
   // cannot: fail with an honest message instead of a crash.
   | { ok: false; code: "DEMO_MODE" }
@@ -52,13 +61,38 @@ export const createOrder = actionClient
       console.error("[checkout] expiry sweep failed", error);
     }
 
+    // Constructing the provider validates its config, so a deployment with a
+    // missing gateway key fails HERE — before an order exists and stock is
+    // reserved for a payment that can never start.
+    const provider = paymentMethod === "ONLINE" ? getPaymentProvider() : null;
+
     // A retried request (double-tap, flaky network) finds the order the
-    // first attempt created instead of creating a second one.
+    // first attempt created instead of creating a second one. If that order
+    // is still waiting for its online payment, the customer needs somewhere
+    // to pay: re-derive the same signed link (deterministic reference +
+    // stored expiry ⇒ byte-identical URL). Past PENDING there is nothing
+    // left to pay or the sweep already cancelled — no link.
     const existing = await db.order.findUnique({
       where: { idempotencyKey },
-      select: { id: true, orderNumber: true },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        totalCents: true,
+        guestEmail: true,
+        reservationExpiresAt: true,
+      },
     });
     if (existing) {
+      if (provider && existing.status === "PENDING") {
+        const checkoutUrl = await initiateOnlinePayment(provider, existing);
+        return {
+          ok: true,
+          orderId: existing.id,
+          orderNumber: existing.orderNumber,
+          checkoutUrl,
+        };
+      }
       return { ok: true, orderId: existing.id, orderNumber: existing.orderNumber };
     }
 
@@ -153,8 +187,14 @@ export const createOrder = actionClient
     });
 
     const lines = items.map(({ variantId, qty }) => ({ variantId, qty }));
+    const reservationHours =
+      paymentMethod === "CASH_ON_DELIVERY"
+        ? RESERVATION_HOURS.CASH_ON_DELIVERY
+        : provider!.name === "mock"
+          ? RESERVATION_HOURS.ONLINE_MOCK
+          : RESERVATION_HOURS.ONLINE_GATEWAY;
     const reservationExpiresAt = new Date(
-      Date.now() + RESERVATION_HOURS[paymentMethod] * 60 * 60 * 1000,
+      Date.now() + reservationHours * 60 * 60 * 1000,
     );
 
     // Two attempts: the only reason to retry is an orderNumber collision.
@@ -210,6 +250,25 @@ export const createOrder = actionClient
           await reserveStock(tx, created.id, lines);
           return created;
         });
+        // Outside the transaction on purpose: a future adapter may create the
+        // payment over HTTP, and a gateway round-trip must never hold row
+        // locks. If this throws, the order stands (PENDING, reserved) and the
+        // retry path above re-initiates against it — self-healing.
+        if (provider) {
+          const checkoutUrl = await initiateOnlinePayment(provider, {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            totalCents,
+            guestEmail: delivery.email ?? null,
+            reservationExpiresAt,
+          });
+          return {
+            ok: true,
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            checkoutUrl,
+          };
+        }
         return { ok: true, orderId: order.id, orderNumber: order.orderNumber };
       } catch (error) {
         if (error instanceof OutOfStockError) {
@@ -229,12 +288,33 @@ export const createOrder = actionClient
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
           const target = String(error.meta?.target ?? "");
           if (target.includes("idempotencyKey")) {
-            // Lost a race against our own retry — the order exists.
+            // Lost a race against our own retry — the order exists. Same
+            // deal as the early-return above: an online order still in
+            // PENDING gets its (identical) payment link re-derived.
             const winner = await db.order.findUnique({
               where: { idempotencyKey },
-              select: { id: true, orderNumber: true },
+              select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                totalCents: true,
+                guestEmail: true,
+                reservationExpiresAt: true,
+              },
             });
             if (winner) {
+              if (provider && winner.status === "PENDING") {
+                const checkoutUrl = await initiateOnlinePayment(
+                  provider,
+                  winner,
+                );
+                return {
+                  ok: true,
+                  orderId: winner.id,
+                  orderNumber: winner.orderNumber,
+                  checkoutUrl,
+                };
+              }
               return {
                 ok: true,
                 orderId: winner.id,

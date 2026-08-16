@@ -8,14 +8,25 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { actionClient } from "@/lib/safe-action";
 import { slugify } from "@/lib/slug";
+import { deleteProductPermanently } from "./lifecycle";
+import {
+  addProductImage,
+  moveProductMedia as moveMediaCore,
+  removeProductMedia as removeMediaCore,
+} from "./media";
 import {
   addOptionSchema,
   addOptionValueSchema,
   adjustStockSchema,
   createProductSchema,
+  deleteProductSchema,
   generateVariantsSchema,
+  moveProductMediaSchema,
+  removeProductMediaSchema,
+  setProductArchivedSchema,
   updateProductSchema,
   updateVariantSchema,
+  uploadProductMediaSchema,
 } from "./schemas";
 import { applyStockAdjustment } from "./stock-adjust";
 import { cartesian, proposeVariantSku } from "./variant-sku";
@@ -301,5 +312,107 @@ export const adjustStock = actionClient
     await requireStaff();
     const outcome = await applyStockAdjustment(db, parsedInput);
     if (outcome.ok) revalidateProduct(outcome.productId);
+    return outcome;
+  });
+
+// Media and lifecycle writes are the edits the storefront shows instantly
+// (card, gallery, home showcase, a product vanishing), so they also
+// revalidate the store paths — the older product actions predate this and
+// keep their narrower scope.
+
+async function revalidateStorefront(slug?: string) {
+  if (slug) revalidatePath(`/tienda/${slug}`);
+  revalidatePath("/tienda");
+  revalidatePath("/");
+}
+
+async function revalidateMedia(productId: string) {
+  revalidateProduct(productId);
+  const product = await db.product.findUnique({
+    where: { id: productId },
+    select: { slug: true },
+  });
+  await revalidateStorefront(product?.slug);
+}
+
+export const uploadProductMedia = actionClient
+  .inputSchema(uploadProductMediaSchema)
+  .action(async ({ parsedInput }) => {
+    await requireStaff();
+    const { productId, file } = parsedInput;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const outcome = await addProductImage(db, {
+      productId,
+      buffer,
+      // Some Android pickers hand over files with an empty type; the bytes
+      // are still a photo and Cloudinary sniffs the real format on ingest.
+      contentType: file.type || "image/jpeg",
+    });
+    if (outcome.ok) await revalidateMedia(productId);
+    return outcome;
+  });
+
+export const moveProductMedia = actionClient
+  .inputSchema(moveProductMediaSchema)
+  .action(async ({ parsedInput }) => {
+    await requireStaff();
+    const { productId, mediaId, direction } = parsedInput;
+    const outcome = await moveMediaCore(db, { mediaId, direction });
+    if (outcome.ok) await revalidateMedia(productId);
+    return outcome;
+  });
+
+export const removeProductMedia = actionClient
+  .inputSchema(removeProductMediaSchema)
+  .action(async ({ parsedInput }) => {
+    await requireStaff();
+    const { productId, mediaId } = parsedInput;
+    const outcome = await removeMediaCore(db, { mediaId });
+    if (outcome.ok) await revalidateMedia(productId);
+    return outcome;
+  });
+
+// ─── Lifecycle ──────────────────────────────────────────────
+// "Quitar de la tienda" means ARCHIVE: the product disappears from the
+// storefront instantly while orders, snapshots, and the inventory ledger
+// stay whole. Real deletion exists only for a product with no history at
+// all — and the guard re-checks inside the transaction, not just in the UI.
+
+export const setProductArchived = actionClient
+  .inputSchema(setProductArchivedSchema)
+  .action(async ({ parsedInput }) => {
+    await requireStaff();
+    const { productId, archived } = parsedInput;
+
+    const current = await db.product.findUnique({
+      where: { id: productId },
+      select: { slug: true, publishedAt: true },
+    });
+    if (!current) return { ok: false as const, code: "NOT_FOUND" as const };
+
+    await db.product.update({
+      where: { id: productId },
+      data: {
+        // Restoring returns the product to the state its history implies: it
+        // was live if it ever published, otherwise back to draft.
+        status: archived ? "ARCHIVED" : current.publishedAt ? "ACTIVE" : "DRAFT",
+      },
+    });
+
+    revalidateProduct(productId);
+    await revalidateStorefront(current.slug);
+    return { ok: true as const, archived };
+  });
+
+export const deleteProduct = actionClient
+  .inputSchema(deleteProductSchema)
+  .action(async ({ parsedInput }) => {
+    await requireStaff();
+    const outcome = await deleteProductPermanently(db, parsedInput.productId);
+    if (outcome.ok) {
+      revalidatePath("/admin/productos");
+      revalidatePath("/admin/proveedores");
+      await revalidateStorefront(outcome.slug);
+    }
     return outcome;
   });

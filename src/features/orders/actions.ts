@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { requireStaff } from "@/features/admin/session";
-import { commitSale, releaseStock, returnStock } from "@/features/checkout/stock";
 import { db } from "@/lib/db";
 import { actionClient } from "@/lib/safe-action";
+import { applyOrderTransition } from "./apply-transition";
 import { changeOrderStatusSchema } from "./schemas";
 import { findTransition } from "./transitions";
 
@@ -27,60 +27,21 @@ export const changeOrderStatus = actionClient
     const transition = findTransition(from, to);
     if (!transition) return { ok: false, code: "NOT_ALLOWED" };
 
-    return db.$transaction(async (tx) => {
-      // Compare-and-set on the status the caller saw. The reservation-expiry
-      // sweep cancels PENDING orders on its own schedule, so "cancel" from a
-      // tab opened ten minutes ago can arrive after the order already left
-      // PENDING — and applying its stock effect then would double-release.
-      const won = await tx.order.updateMany({
-        where: { id: orderId, status: from },
-        data: {
-          status: to,
-          // A cancelled or shipped order has nothing left to expire; leaving
-          // the timestamp set would let the sweep pick it up again.
-          reservationExpiresAt: to === "PENDING" ? undefined : null,
-          ...(to === "PAID" ? { paidAt: new Date() } : {}),
-          ...(to === "SHIPPED" ? { shippedAt: new Date() } : {}),
-        },
-      });
+    // The CAS, the timestamps and the stock effect live in
+    // applyOrderTransition — shared with the payment webhook, so the panel
+    // and the gateway can never disagree on what a transition does.
+    const result = await db.$transaction(async (tx) =>
+      applyOrderTransition(tx, orderId, from, to),
+    );
 
-      if (won.count === 0) {
-        const current = await tx.order.findUnique({
-          where: { id: orderId },
-          select: { status: true },
-        });
-        return {
-          ok: false as const,
-          code: "STALE" as const,
-          currentStatus: current?.status ?? "UNKNOWN",
-        };
-      }
+    if (!result.won) {
+      return {
+        ok: false,
+        code: "STALE",
+        currentStatus: result.currentStatus,
+      };
+    }
 
-      if (transition.effect !== "none") {
-        const items = await tx.orderItem.findMany({
-          where: { orderId },
-          select: { variantId: true, quantity: true },
-        });
-        // variantId is SetNull if the variant was deleted; there is no balance
-        // left to move for those lines.
-        const lines = items
-          .filter((i): i is { variantId: string; quantity: number } =>
-            Boolean(i.variantId),
-          )
-          .map((i) => ({ variantId: i.variantId, qty: i.quantity }));
-
-        if (lines.length > 0) {
-          if (transition.effect === "release") {
-            await releaseStock(tx, orderId, lines, `cancelled from ${from}`);
-          } else if (transition.effect === "commit") {
-            await commitSale(tx, orderId, lines);
-          } else {
-            await returnStock(tx, orderId, lines, "refunded");
-          }
-        }
-      }
-
-      revalidatePath("/admin/pedidos");
-      return { ok: true as const };
-    });
+    revalidatePath("/admin/pedidos");
+    return { ok: true };
   });
