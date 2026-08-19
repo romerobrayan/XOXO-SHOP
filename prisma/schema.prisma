@@ -42,11 +42,11 @@ model Category {
 model Product {
   id          String        @id @default(cuid())
   slug        String        @unique
-  name        String
+  name        String        @db.VarChar(100)
   description String?       @db.Text
   status      ProductStatus @default(DRAFT)
 
-  supplierRef String? // supplier reference, e.g. "11362" — already in use
+  supplierRef String? @db.VarChar(40) // supplier reference, e.g. "11362" — already in use
 
   brandId    String?
   brand      Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
@@ -116,7 +116,10 @@ model ProductVariant {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  sku            String  @unique
+  sku            String  @unique @db.VarChar(60)
+  // Bounds enforced by a CHECK constraint added by hand in this field's
+  // migration (Wompi's Agregador-model limits — see PRICE_MIN_CENTS /
+  // PRICE_MAX_CENTS in src/features/products/schemas.ts for the sourcing).
   priceCents     Int
   compareAtCents Int? // strikethrough price for promotions
   barcode        String?
