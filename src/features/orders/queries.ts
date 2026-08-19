@@ -48,6 +48,7 @@ export async function getOrder(orderNumber: string) {
       status: true,
       subtotalCents: true,
       shippingCents: true,
+      shippingZoneName: true,
       discountCents: true,
       totalCents: true,
       discreetPackaging: true,

@@ -1,11 +1,8 @@
 import { z } from "zod";
 
 import { ProductStatus } from "@/generated/prisma/enums";
+import { pesosToCents as pesosToCentsWithin } from "@/lib/pesos";
 
-// Cents come from a text input as pesos ("120.000" or "120000"), so the
-// schema owns the conversion: strip separators, multiply once, integers only
-// after that. Money never travels as a float (CLAUDE.md rule 1).
-//
 // Bounds are Wompi's own documented limits for the Agregador model (the
 // project's payment model — CLAUDE.md "Payments"), not arbitrary numbers:
 // COP 1.500 is Wompi's documented minimum transaction amount, and
@@ -16,13 +13,12 @@ import { ProductStatus } from "@/generated/prisma/enums";
 export const PRICE_MIN_CENTS = 150_000; // COP 1.500
 export const PRICE_MAX_CENTS = 1_000_000_000; // COP 10.000.000
 
-export const pesosToCents = z
-  .string()
-  .trim()
-  .regex(/^\$?\s*\d{1,3}(\.\d{3})*$|^\$?\s*\d+$/, "Precio inválido")
-  .transform((raw) => Number(raw.replace(/[^\d]/g, "")) * 100)
-  .refine((cents) => cents >= PRICE_MIN_CENTS, "El precio no puede ser menor a $1.500")
-  .refine((cents) => cents <= PRICE_MAX_CENTS, "El precio no puede ser mayor a $10.000.000");
+export const pesosToCents = pesosToCentsWithin({
+  min: PRICE_MIN_CENTS,
+  max: PRICE_MAX_CENTS,
+  minMessage: "El precio no puede ser menor a $1.500",
+  maxMessage: "El precio no puede ser mayor a $10.000.000",
+});
 
 const productFields = {
   name: z

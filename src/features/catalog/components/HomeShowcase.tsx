@@ -37,6 +37,8 @@ export function HomeShowcase({ products }: { products: ProductCardDTO[] }) {
       name: active.name,
       kicker: cardKicker(active) || null,
       variantLabel: null,
+      // Same URL the modal is rendering — already the card crop.
+      imageUrl: active.image?.url ?? null,
       priceCents: active.priceFromCents,
     });
     setActive(null);
