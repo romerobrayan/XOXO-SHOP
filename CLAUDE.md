@@ -104,6 +104,16 @@ npm run admin:dev            # dev-only panel login: admin@secreto.local /
 The storefront runs **with or without a database**: leave `DATABASE_URL` unset and the
 catalog queries answer from fixtures instead (see "Demo data" below).
 
+## Codebase exploration (optional)
+
+This repo can be explored as a knowledge graph via the `graphify` skill — `/graphify`
+from Claude Code, or the `graphify` CLI directly. It builds a node/edge map of the
+codebase (AST for code, semantic extraction for docs) with community detection, useful
+for "where is X" / "what connects to Y" questions at a fraction of the tokens a raw
+grep-and-read sweep costs. Output goes to `graphify-out/` (gitignored — regenerate
+locally with `/graphify --update` after pulling new commits rather than expecting a
+teammate's copy; sidecar files record a machine-local Python interpreter path).
+
 ## Database — two of them, on purpose
 
 **Neon is the primary database** (managed Postgres, `us-east-2`). It is up whether or

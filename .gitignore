@@ -44,6 +44,11 @@ docker-compose.override.yml
 # regenerable third-party data; only scripts/import/seleccion.json is committed
 /data/
 
+# graphify knowledge graph — regenerate with `/graphify` (Claude Code) or the
+# `graphify` CLI; sidecar files record a machine-local Python interpreter path
+# and are meaningless on another machine, so this stays local, not committed
+/graphify-out/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
