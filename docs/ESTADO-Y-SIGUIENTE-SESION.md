@@ -30,7 +30,7 @@ confirmada con transacciones reales. Falta un paso que no es código: la
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **0 — Diseño**              | **Implementada.** Age gate, Home, Catálogo, Producto y Checkout (3 pasos) según el handoff SECRETO. Falta la aprobación de la clienta                                                                 |
 | **1 — Catálogo**            | **Herramienta completa (Bloque I).** Esquema, seed, pipeline de importación, CRUD del panel, **fotos desde el panel y curador de proveedores en `/admin/proveedores`**. Lo que falta es que la clienta ejecute su curaduría — ya puede, desde el celular |
-| **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. Falta el arranque de pago real (Bloque F)                 |
+| **2 — Carrito y checkout**  | **Implementada (Bloque C).** El checkout escribe `Order` + `OrderItem` con snapshots, reserva stock atómicamente y libera reservas vencidas. La bolsa muestra la foto real del producto y el **domicilio se cobra por zona** (`/admin/domicilios`), con salida a WhatsApp para direcciones sin tarifa |
 | **3 — Pagos**               | **Implementada contra el sandbox (Bloque F).** Arranque + webhook idempotente + página de retorno, verificados con transacciones reales de prueba. Production sigue en `mock` hasta la aprobación del comercio; falta la URL de eventos en el panel |
 | **4 — Admin y lanzamiento** | **Bloques D e I hechos.** Autenticación better-auth, pedidos con máquina de estados, CRUD de productos con opciones y stock en dos toques, **fotos a Cloudinary desde el panel, curador de proveedores, archivar/restaurar con borrado guardado y dashboard de ventas en `/admin`**. Bloque I espera deploy (migración + staging en Neon + `CLOUDINARY_URL` en Vercel) |
 
@@ -81,6 +81,113 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: dos arreglos del checkout — la foto real del producto en la bolsa y
+el domicilio cobrado por zona en vez de una tarifa plana.**
+
+- **La bolsa muestra la foto del producto.** `CartItem` no tenía ningún campo
+  de imagen, así que la línea del checkout renderizaba el placeholder de rayas
+  *siempre*, para todos los productos: no era una foto faltante, era que el
+  carrito nunca cargó ninguna. Ahora `CartItem.imageUrl` se llena en los tres
+  puntos donde se agrega a la bolsa (ficha de producto, tarjeta de la grilla y
+  modal de la home) desde una sola regla compartida,
+  `coverImage()` en `src/features/catalog/cover.ts` — la misma que ya elegía
+  la portada de las tarjetas, y la misma que usa el snapshot de
+  `OrderItem.imageUrl`. En la ficha la portada **sigue la selección**: si hay
+  fotografía por color (`ProductMedia.optionValueId`), la línea de la bolsa
+  muestra la del color elegido. Sin foto cargada, el fallback sigue siendo el
+  `ProductImagePlaceholder` oficial, nunca una imagen genérica — con una
+  variante `size="thumb"` porque a 88 px la etiqueta larga se cortaba a
+  media palabra. La bolsa persistida en localStorage sube a `version: 1` con
+  una migración de zustand: las bolsas viejas normalizan a `imageUrl: null` en
+  vez de meter `undefined` en un `<img src>`.
+
+- **El domicilio se cobra por zona.** `SHIPPING_CENTS = $12.000` era una
+  constante plana que además se mostraba en el Resumen **desde el paso 1**,
+  antes de preguntar la dirección. Ahora hay dos tablas nuevas
+  (`ShippingZone` + `ShippingZoneArea`) y una sección **Domicilios** en
+  `/admin`, donde la clienta define zonas con precio propio: ubicaciones
+  específicas (los barrios o municipios que escriba, "El Poblado, Laureles,
+  Envigado"), un domicilio general por departamento y el domicilio nacional.
+  `Order.shippingCents` ya soportaba costo variable; lo nuevo es de dónde sale
+  el número.
+
+  - **La escalera** vive en `src/features/shipping/zones.ts`, un módulo puro
+    sin Prisma ni React que el panel, el checkout, la página de envíos y el
+    Server Action comparten: zona específica que calce por ciudad o barrio →
+    domicilio general del departamento → domicilio nacional. El match
+    normaliza tildes, mayúsculas y los artículos que la gente escribe o no
+    ("El Poblado" = "poblado", "Barrio Manrique" = "Manrique"), y el mismo
+    normalizador corre al guardar la zona, así que las dos puntas no pueden
+    diverger.
+  - **El paso 2 gana dos campos**: `barrio` —que ya existía en el schema Zod y
+    llegaba hasta `Address.neighborhood`, pero no tenía input— y un select
+    "Zona de entrega" que se **preselecciona** con lo que la escalera calcula y
+    la compradora puede cambiar. El paso 1 ya no muestra un monto: dice "Se
+    calcula con tu dirección" y el Total se lee `$165.000 + envío`. Desde el
+    paso 2 el monto se actualiza en vivo.
+  - **El precio lo decide el servidor, siempre.** Del navegador solo viaja
+    *cuál* zona se eligió (`delivery.shippingZoneId`); `createOrder` vuelve a
+    resolver la tarifa contra la base y **rechaza una zona que el departamento
+    declarado no tiene ofrecida** — si no, una dirección de Barranquilla podría
+    pedir la tarifa de Medellín. El pedido congela `shippingZoneName` como
+    snapshot, igual que el resto de `OrderItem`, y el detalle del pedido en el
+    panel lo muestra junto al monto.
+  - **WhatsApp como salida real.** "Mi zona no aparece" deja el envío en "A
+    convenir", deshabilita "Confirmar pedido" (no se puede cobrar un total que
+    no se conoce) y ofrece el CTA de WhatsApp con un mensaje prellenado que
+    lleva ciudad, barrio, departamento, cantidad y subtotal — **nunca nombres
+    de producto**: la discreción es requisito, no preferencia. El servidor
+    hace lo mismo del otro lado (`code: "SHIPPING_UNQUOTED"`, sin escribir
+    orden ni reservar stock). Y el CTA de coordinar domicilio queda visible en
+    el Resumen aunque ya haya tarifa calculada.
+  - **`/legal/envios` dejó de publicar un número fijo**: lista las zonas
+    vigentes con sus precios, leyendo la misma consulta que cobra el checkout.
+    Con la tabla vacía la consulta responde con la tarifa plana histórica y la
+    página se lee igual que antes, así que un despliegue sin zonas cargadas no
+    cambia nada. **`/checkout` y `/legal/envios` pasaron a `force-dynamic`**:
+    prerenderizadas servían las zonas del build, y una tarifa congelada
+    mostrada al comprador mientras el servidor cobra otra es exactamente la
+    divergencia que este checkout evita en todo lo demás.
+  - **Guardarraíles en el panel**: una ubicación no puede estar en dos zonas
+    (índice único `[department, matchKey]`, con el error diciendo cuál choca),
+    hay un solo domicilio general por departamento y uno nacional, la zona
+    específica exige al menos una ubicación, y el precio admite `$0` (domicilio
+    gratis) pero no más de $500.000. Si faltan zonas activas la lista avisa que
+    sigue cobrando la tarifa plana; si hay zonas pero **ninguna nacional**,
+    avisa que las direcciones de fuera quedan sin tarifa.
+
+- **Verificado en navegador** contra el build de producción con Postgres local:
+  foto real y placeholder conviviendo en la bolsa; El Poblado → $8.000,
+  Buenos Aires (Medellín) → $12.000 general, Barranquilla → $18.000 nacional,
+  "mi zona no aparece" → botón bloqueado y WhatsApp; pedido confirmado con
+  `shippingCents = 800000` y `shippingZoneName = "El Poblado y Laureles"` en la
+  base. En el panel: crear zona, ubicación duplicada rechazada, segundo
+  nacional rechazado, específica sin ubicaciones rechazada, precio fuera de
+  rango rechazado, domicilio gratis creado, y el aviso de "falta nacional" al
+  pausar la nacional.
+- **26 pruebas nuevas** (20 del núcleo de zonas + 3 del cobro real contra
+  Postgres + normalización/parsing de ubicaciones). `npm run test` 182 verdes,
+  `npx tsc --noEmit` y `npm run lint` limpios, `npm run build` pasa.
+- `pesosToCents` se extrajo a `src/lib/pesos.ts` como fábrica con límites por
+  campo: un precio de producto y una tarifa de domicilio no son el mismo
+  número (el domicilio admite 0).
+- `vitest.config.ts` resuelve `server-only` al stub vacío del propio paquete
+  —el mismo que Next le da a un Server Component—, porque el módulo de
+  consultas de zonas se marca `server-only` y eso hacía intestable el Server
+  Action que lo importa.
+
+**Para desplegar esto hace falta una migración**: `20260819030322_shipping_zones`
+crea `ShippingZone`, `ShippingZoneArea` y agrega `Order.shippingZoneName`, así que
+Neon necesita `npx prisma migrate deploy` (nunca `migrate dev`, nunca `db push`).
+Sin correrla la tabla no existe y la consulta revienta —panel y checkout por
+igual—, así que la migración va **antes** del despliegue del código. La tarifa
+plana de respaldo cubre otra cosa: la tabla existiendo y vacía, y la vista previa
+sin `DATABASE_URL`.
+
+---
+
+### Sesión anterior — 13 de agosto de 2026 — Bloque I: la clienta cura desde el panel
 
 **Objetivo: Bloque I — que la CLIENTA haga la curación completa del catálogo
 desde el panel, desde el celular o el computador por igual.** Hasta hoy, la
@@ -964,7 +1071,9 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | Dirección de notificación inexistente         | `LEGAL_DOMICILIO` va vacío a propósito: la tienda es virtual y la única dirección es la vivienda del titular. La identificación se sostiene sobre ciudad + canales. Si la pasarela o un requerimiento exigen dirección publicada, la salida es una oficina virtual o la del contador                                                    |
 | ~~Correo comercial inexistente~~ ✅           | Saldada: `SUPPORT_EMAIL` en `src/lib/contact.ts` (`soporte.secretobtq@gmail.com`), visible en el footer y publicado como canal de habeas data en la política de datos y en los términos                                                                                                                                               |
 | Facturación siendo no responsable de IVA      | El RUT trae la responsabilidad **49 — No responsable de IVA**, así que los términos ya no afirman que el precio incluya IVA. Falta confirmar con el contador si factura electrónicamente o con documento equivalente; puede cambiar una línea de `/legal/terminos`                                                                     |
-| Tarifa de envío publicada = supuesto          | `/legal/envios` publica `SHIPPING_CENTS` ($12.000), que sigue siendo el supuesto del handoff. Página y cobro no pueden divergir —leen la misma constante— pero el número sigue esperando a la clienta (§6)                                                                                                                            |
+| ~~Tarifa de envío publicada = supuesto~~ ✅    | Saldada (2026-08-19): el domicilio se cobra por zona desde `/admin/domicilios`, y `/legal/envios` publica esas mismas zonas. Con la tabla vacía sigue aplicando la tarifa plana de $12.000, así que lo que falta ya no es código: es que la clienta cargue sus zonas reales                                                              |
+| Zonas reales sin cargar                       | El panel está listo y vacío. Mientras no haya zonas activas, el checkout cobra los $12.000 planos de siempre y el panel lo avisa en la lista. Cargarlas es trabajo de la clienta, no del repo (§6)                                                                                                                                      |
+| Ciudad sigue siendo texto libre               | El match de zona normaliza tildes, mayúsculas y artículos, y la compradora puede corregir la zona en un select, así que un typo nunca fija el precio en silencio. Un catálogo cerrado de municipios sería más estricto; se evaluó y se difirió por no romper el envío nacional a cualquier destino                                       |
 | Remitente del empaque sin definir             | La política de envíos promete un remitente neutro que no menciona la tienda ni la categoría. Es cierto y es lo decidido; la cadena exacta impresa en la guía la elige la clienta (§6)                                                                                                                                                 |
 | Spec §7 y §9 desfasados                       | El plan de entrega dice que las Fases 2 y 4 "no empezaron"; Bloques C y D están en producción desde el 6 de agosto. Solo documentación, pero es el documento que alguien nuevo lee primero                                                                                                                                            |
 | `mediaForSelection` sin cablear              | Fotos por color elegido: implementado y testeado, pero conectar la galería al picker exige reestructurar el PDP en isla cliente (hoy `Gallery` y `PurchasePanel` son hermanos server). Evaluado y diferido                                |
@@ -998,7 +1107,10 @@ Estas bloquean decisiones técnicas, no son de diseño. La lista completa está 
    Bancolombia o Nequi a su nombre, con más de 30 días?; (c) RUT, cédula, comprobante de
    domicilio y extractos de los últimos 3 meses. Esto es lo más riesgoso del proyecto y es
    calendario, no código.
-5. **Envío** — tarifa plana, por ciudad o gratis desde un monto. El handoff muestra
-   `$12.000` fijo en el resumen del checkout, que es un supuesto de diseño, no un dato.
+5. **Envío** — ✅ **respondida y construida**: el domicilio varía fuerte por zona, así
+   que ahora se define por zona en `/admin/domicilios` (ubicaciones específicas,
+   domicilio general del departamento, domicilio nacional) y el checkout lo cobra desde
+   ahí. Lo que falta es dato, no decisión: **cargar las zonas reales con sus precios**.
+   Mientras la tabla esté vacía se sigue cobrando la tarifa plana de $12.000.
 6. **Empaque discreto, en concreto** — qué remitente aparece en la guía. Es una promesa que
    el sitio hace por escrito, así que tiene que ser cierta.

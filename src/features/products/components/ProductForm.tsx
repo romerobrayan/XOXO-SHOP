@@ -11,8 +11,27 @@ import type { ProductStatus } from "@/generated/prisma/enums";
 import { createProduct, updateProduct } from "../actions";
 
 const labelClass = "mb-2 block text-sm font-medium text-cuerpo";
+const hintClass = "mt-1 text-xs text-cobre";
+
+const NAME_MAX = 100;
+const SUPPLIER_REF_MAX = 40;
+const SKU_MAX = 60;
 
 type Choice = { id: string; name: string };
+
+// next-safe-action's default ("formatted") validationErrors shape is one
+// level deep per field: { fieldName: { _errors: string[] }, ... }. Surfacing
+// the real reason beats a generic "no pudimos guardar" for every rejection.
+function firstValidationError(validationErrors: unknown): string | null {
+  if (!validationErrors || typeof validationErrors !== "object") return null;
+  for (const value of Object.values(validationErrors as Record<string, unknown>)) {
+    if (value && typeof value === "object" && "_errors" in value) {
+      const errors = (value as { _errors?: string[] })._errors;
+      if (errors && errors.length > 0) return errors[0];
+    }
+  }
+  return null;
+}
 
 type Props = {
   brands: Choice[];
@@ -57,7 +76,11 @@ export function ProductForm({ brands, categories, product }: Props) {
       }
       setError("Ese SKU ya existe en otro producto.");
     },
-    onError: () => setError("No pudimos crear el producto."),
+    onError: ({ error }) =>
+      setError(
+        firstValidationError(error.validationErrors) ??
+          "No pudimos crear el producto.",
+      ),
   });
 
   const update = useAction(updateProduct, {
@@ -69,7 +92,11 @@ export function ProductForm({ brands, categories, product }: Props) {
         setError("No pudimos guardar los cambios.");
       }
     },
-    onError: () => setError("No pudimos guardar los cambios."),
+    onError: ({ error }) =>
+      setError(
+        firstValidationError(error.validationErrors) ??
+          "No pudimos guardar los cambios.",
+      ),
   });
 
   const pending = create.isPending || update.isPending;
@@ -100,10 +127,14 @@ export function ProductForm({ brands, categories, product }: Props) {
         <span className={labelClass}>Nombre</span>
         <Input
           required
+          maxLength={NAME_MAX}
           value={form.name}
           onChange={(e) => set("name", e.target.value)}
           placeholder="Tal como lo nombra el fabricante"
         />
+        <p className={hintClass}>
+          {form.name.length}/{NAME_MAX} caracteres
+        </p>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -141,6 +172,7 @@ export function ProductForm({ brands, categories, product }: Props) {
         <label>
           <span className={labelClass}>Referencia del proveedor</span>
           <Input
+            maxLength={SUPPLIER_REF_MAX}
             value={form.supplierRef}
             onChange={(e) => set("supplierRef", e.target.value)}
             placeholder="REF: 11362"
@@ -165,6 +197,7 @@ export function ProductForm({ brands, categories, product }: Props) {
             <span className={labelClass}>SKU</span>
             <Input
               required
+              maxLength={SKU_MAX}
               value={form.sku}
               onChange={(e) => set("sku", e.target.value)}
               placeholder="LOV-LUSH3"
@@ -179,6 +212,7 @@ export function ProductForm({ brands, categories, product }: Props) {
               onChange={(e) => set("price", e.target.value)}
               placeholder="120.000"
             />
+            <p className={hintClass}>Entre $1.500 y $10.000.000</p>
           </label>
         </div>
       ) : null}

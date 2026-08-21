@@ -1,13 +1,13 @@
 // Server-side view models. This is the boundary that keeps Prisma rows — and
 // with them stockOnHand/stockReserved — out of page props and client bundles.
 // Everything the storefront renders comes through these mappers.
-import { toCardImageUrl } from "@/lib/cloudinary-url";
 import {
   availableOf,
   bandFor,
   DEFAULT_LOW_STOCK_AT,
   type AvailabilityBand,
 } from "./availability";
+import { coverImage } from "./cover";
 import {
   sortVariants,
   type PickerOption,
@@ -98,19 +98,11 @@ export function toProductCard(p: ProductCardPayload): ProductCardDTO {
 
   const hasOptions = p.options.length > 0;
 
-  // Cards show the primary media item; a leading video falls back to its
-  // poster frame (never autoplay in a grid) or to the placeholder. The stored
-  // URL is the padded 4:5 (arena letterbox) — cards get the crop-to-fill
-  // variant; the PDP gallery keeps the stored version.
-  const primary = p.media[0] ?? null;
-  const image =
-    primary === null
-      ? null
-      : primary.type === "VIDEO"
-        ? primary.posterUrl
-          ? { url: toCardImageUrl(primary.posterUrl), alt: primary.alt }
-          : null
-        : { url: toCardImageUrl(primary.url), alt: primary.alt };
+  // Cards show the primary media item, resolved by the shared cover rule so
+  // the grid, the bag and the order snapshot never disagree about which photo
+  // represents a product. The stored URL is the padded 4:5 (arena letterbox);
+  // cards get the crop-to-fill variant, the PDP gallery keeps the stored one.
+  const image = coverImage(p.media);
 
   return {
     id: p.id,

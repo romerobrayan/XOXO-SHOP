@@ -112,7 +112,17 @@ export const deliveryDataSchema = z.object({
     .trim()
     .min(5, "Escribe una dirección completa")
     .max(200, "La dirección es demasiado larga"),
-  barrio: z.string().trim().max(80).optional(),
+  barrio: z
+    .string()
+    .trim()
+    .max(80, "El nombre del barrio es demasiado largo")
+    .optional()
+    .transform((value) => (value === "" ? undefined : value)),
+  // Which delivery zone the buyer picked, or the WHATSAPP_ZONE_ID sentinel
+  // for "coordinate the fee with an advisor". Only the choice crosses the
+  // boundary — never a price: the action re-resolves the fee server-side
+  // against the zones the panel configured (src/features/shipping/zones.ts).
+  shippingZoneId: z.string().trim().max(64).optional(),
   notas: z
     .string()
     .trim()

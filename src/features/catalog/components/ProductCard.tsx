@@ -53,6 +53,8 @@ export function ProductCard({
       name: product.name,
       kicker: cardKicker(product) || null,
       variantLabel: null,
+      // Same URL the card is rendering — already the card crop.
+      imageUrl: product.image?.url ?? null,
       priceCents: product.priceFromCents,
     });
     setAdded(true);

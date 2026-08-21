@@ -10,9 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/features/cart/store";
 import { availabilityLabel, bandFor } from "../availability";
+import { coverImage } from "../cover";
 import type { ProductDetailDTO } from "../dto";
 import {
   defaultSelection,
+  mediaForSelection,
   priceRange,
   variantForSelection,
 } from "../pickerState";
@@ -35,6 +37,12 @@ export function PurchasePanel({ product }: { product: ProductDetailDTO }) {
   const variant = variantForSelection(options, variants, selection);
   const band = variant ? bandFor(variant.available, variant.lowStockAt) : null;
   const out = !variant || band?.state === "out";
+
+  // The photo that travels into the bag follows the selection, so a bag row
+  // for "Negro" shows the black one when color-specific photography exists
+  // (ProductMedia.optionValueId). Falls back to the product cover, then to
+  // null — which renders the placeholder, never a stand-in photo.
+  const cover = coverImage(mediaForSelection(product.media, selection));
 
   const range = priceRange(variants);
   const priceCents = variant ? variant.priceCents : range.min;
@@ -65,6 +73,7 @@ export function PurchasePanel({ product }: { product: ProductDetailDTO }) {
             .filter(Boolean)
             .join(" · ") || null,
         variantLabel,
+        imageUrl: cover?.url ?? null,
         priceCents: variant.priceCents,
       },
       shownQty,

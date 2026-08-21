@@ -4,20 +4,23 @@ import Link from "next/link";
 import { useAction } from "next-safe-action/hooks";
 import { useEffect, useState } from "react";
 
+import { ProductImagePlaceholder } from "@/components/commerce/ProductImagePlaceholder";
 import { WhatsAppCta } from "@/components/commerce/WhatsAppCta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Price } from "@/features/catalog/components/Price";
-import {
-  SHIPPING_CENTS,
-  subtotalCents,
-  useCart,
-  type CartItem,
-} from "@/features/cart/store";
+import { subtotalCents, useCart, type CartItem } from "@/features/cart/store";
 import { createOrder, type LineConflict } from "@/features/checkout/actions";
 import { DEPARTAMENTOS } from "@/features/checkout/schemas";
+import {
+  resolveShipping,
+  WHATSAPP_ZONE_ID,
+  zonesForDepartment,
+  type ShippingQuote,
+  type ShippingZoneDTO,
+} from "@/features/shipping/zones";
 import { formatCOP } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +29,12 @@ import { cn } from "@/lib/utils";
 // llama al Server Action createOrder, que re-lee precios de la base, escribe
 // Order + OrderItem con snapshots y reserva stock. La bolsa se vacía solo
 // cuando el servidor confirma.
+//
+// El domicilio se cotiza por zona (src/features/shipping/zones.ts), así que el
+// resumen NO muestra un monto antes de tener dirección: en el paso 1 dice que
+// se calcula, y desde el paso 2 se actualiza en vivo con lo que la compradora
+// escribe. Acá eso es presentación; quien decide el cobro es el Server Action,
+// que vuelve a resolver la zona contra la base.
 
 const PASOS = ["Bolsa", "Datos", "Pago"] as const;
 
@@ -47,7 +56,11 @@ type DatosEntrega = {
   documentId: string;
   department: (typeof DEPARTAMENTOS)[number];
   ciudad: string;
+  barrio: string;
   direccion: string;
+  // "" = automática: la zona la decide la ciudad o el barrio. Un valor
+  // explícito es una elección de la compradora y manda sobre el match.
+  shippingZoneId: string;
   notas: string;
 };
 
@@ -102,11 +115,25 @@ function ItemCard({ item }: { item: CartItem }) {
     "flex h-9 w-9 items-center justify-center text-base text-cuerpo transition-colors hover:text-vino disabled:pointer-events-none disabled:opacity-45";
   return (
     <div className="flex gap-4 rounded-md border border-linea bg-crema p-4">
-      <div
-        aria-hidden="true"
-        className="stripes-placeholder flex h-[110px] w-[88px] shrink-0 items-center justify-center rounded-sm"
-      >
-        <span className="font-mono text-[10px] text-tenue">foto</span>
+      {/* La foto del producto, la misma que la compradora vio en la ficha.
+          Sin foto cargada cae al placeholder oficial de rayas —nunca una
+          imagen genérica de reemplazo (CLAUDE.md). */}
+      <div className="w-[88px] shrink-0">
+        {item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- Cloudinary delivers pre-sized assets
+          <img
+            src={item.imageUrl}
+            alt={item.name}
+            loading="lazy"
+            className="aspect-[4/5] w-full rounded-sm bg-arena object-cover object-center"
+          />
+        ) : (
+          <ProductImagePlaceholder
+            name={item.name}
+            size="thumb"
+            className="rounded-sm"
+          />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         {item.kicker && <p className="kicker">{item.kicker}</p>}
@@ -222,7 +249,7 @@ function ConflictPanel({
   );
 }
 
-export function CheckoutFlow() {
+export function CheckoutFlow({ zones }: { zones: ShippingZoneDTO[] }) {
   const cartItems = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const remove = useCart((s) => s.remove);
@@ -237,9 +264,15 @@ export function CheckoutFlow() {
     documentId: "",
     department: "Antioquia",
     ciudad: "Medellín",
+    barrio: "",
     direccion: "",
+    shippingZoneId: "",
     notas: "",
   });
+  // El resumen no puede cotizar un domicilio antes de saber a dónde va. Se
+  // enciende al terminar el paso 2 y ya no se apaga: volver a la bolsa
+  // conserva el monto en vez de borrarlo.
+  const [direccionLista, setDireccionLista] = useState(false);
   const [metodo, setMetodo] = useState<MetodoPago>("contraentrega");
   // One key per checkout attempt: if the request is retried, the server
   // finds the order the first attempt created instead of creating another.
@@ -279,6 +312,10 @@ export function CheckoutFlow() {
         setErrorMsg(
           "Esta es la tienda de demostración: los pedidos todavía no se registran. Escríbenos por WhatsApp y coordinamos tu compra.",
         );
+      } else if (data.code === "SHIPPING_UNQUOTED") {
+        setErrorMsg(
+          "Todavía no tenemos una tarifa de domicilio para esta dirección. Escríbenos por WhatsApp y la coordinamos contigo.",
+        );
       } else {
         setConflictos(data.conflicts);
       }
@@ -295,7 +332,44 @@ export function CheckoutFlow() {
   const items = confirmado?.items ?? cartItems;
   const vacia = items.length === 0;
   const subtotal = subtotalCents(items);
-  const total = subtotal + (vacia ? 0 : SHIPPING_CENTS);
+
+  // Las zonas que se le ofrecen a este departamento y la que le tocaría por
+  // ciudad o barrio si no elige ninguna: el <select> muestra la automática
+  // seleccionada, así el monto del resumen y la opción marcada coinciden.
+  const zonasOfrecidas = zonesForDepartment(zones, datos.department);
+  const automatica = resolveShipping(zones, {
+    department: datos.department,
+    ciudad: datos.ciudad,
+    barrio: datos.barrio,
+  });
+  const zonaElegida =
+    datos.shippingZoneId ||
+    (automatica.status === "QUOTED" ? automatica.zoneId : WHATSAPP_ZONE_ID);
+
+  // Antes de tener dirección no hay domicilio que cotizar (paso 1).
+  const cotizacion: ShippingQuote | null = direccionLista
+    ? resolveShipping(zones, {
+        department: datos.department,
+        ciudad: datos.ciudad,
+        barrio: datos.barrio,
+        zoneId: datos.shippingZoneId,
+      })
+    : null;
+  const envioCents = cotizacion?.status === "QUOTED" ? cotizacion.priceCents : null;
+  const total = subtotal + (vacia || envioCents === null ? 0 : envioCents);
+  // Sin cotización no hay pedido que confirmar: el monto lo acuerda una
+  // asesora por WhatsApp, no lo inventa el checkout.
+  const sinCotizacion = cotizacion?.status === "UNQUOTED";
+
+  // Mensaje del CTA de WhatsApp del resumen. Lleva a dónde va el pedido y
+  // cuánto suma — nunca qué productos son: la discreción es requisito de
+  // producto, no una preferencia (CLAUDE.md).
+  const mensajeDomicilio = [
+    "Hola, quiero coordinar el domicilio de mi pedido.",
+    `Ciudad: ${datos.ciudad || "—"}${datos.barrio ? ` · Barrio: ${datos.barrio}` : ""}`,
+    `Departamento: ${datos.department}`,
+    `Productos: ${items.reduce((n, i) => n + i.qty, 0)} · Subtotal: ${formatCOP(subtotal)}`,
+  ].join("\n");
 
   function confirmar() {
     setErrorMsg(null);
@@ -320,7 +394,10 @@ export function CheckoutFlow() {
         documentId: datos.documentId,
         department: datos.department,
         ciudad: datos.ciudad,
+        barrio: datos.barrio === "" ? undefined : datos.barrio,
         direccion: datos.direccion,
+        // Solo la elección viaja; el precio lo resuelve el servidor.
+        shippingZoneId: datos.shippingZoneId || undefined,
         notas: datos.notas === "" ? undefined : datos.notas,
       },
       paymentMethod: metodo === "contraentrega" ? "CASH_ON_DELIVERY" : "ONLINE",
@@ -407,6 +484,7 @@ export function CheckoutFlow() {
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  setDireccionLista(true);
                   setPaso(3);
                 }}
                 className="grid gap-4"
@@ -487,10 +565,15 @@ export function CheckoutFlow() {
                     <Select
                       value={datos.department}
                       onChange={(e) =>
-                        set(
-                          "department",
-                          e.target.value as DatosEntrega["department"],
-                        )
+                        // Cambiar de departamento cambia las zonas que se
+                        // ofrecen, así que una elección anterior deja de
+                        // aplicar: vuelve a automática.
+                        setDatos((prev) => ({
+                          ...prev,
+                          department: e.target
+                            .value as DatosEntrega["department"],
+                          shippingZoneId: "",
+                        }))
                       }
                     >
                       {DEPARTAMENTOS.map((d) => (
@@ -511,6 +594,48 @@ export function CheckoutFlow() {
                     />
                   </label>
                 </div>
+                <div className="grid gap-4 sm:grid-cols-[0.8fr_1.2fr]">
+                  <label>
+                    <span className={labelClass}>
+                      Barrio{" "}
+                      <span className="font-light text-tenue">(opcional)</span>
+                    </span>
+                    <Input
+                      autoComplete="address-level3"
+                      placeholder="Ej: Laureles"
+                      value={datos.barrio}
+                      onChange={(e) => set("barrio", e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span className={labelClass}>Zona de entrega</span>
+                    <Select
+                      value={zonaElegida}
+                      onChange={(e) => set("shippingZoneId", e.target.value)}
+                    >
+                      {zonasOfrecidas.map((zona) => (
+                        <option key={zona.id} value={zona.id}>
+                          {zona.name} — {formatCOP(zona.priceCents)}
+                        </option>
+                      ))}
+                      <option value={WHATSAPP_ZONE_ID}>
+                        Mi zona no aparece — coordinar por WhatsApp
+                      </option>
+                    </Select>
+                  </label>
+                </div>
+                {/* Por qué está marcada esa zona, o qué pasa si eligió salir
+                    de la lista. El precio ya se ve en el resumen. */}
+                <p className="-mt-1 text-sm font-light text-suave">
+                  {zonaElegida === WHATSAPP_ZONE_ID
+                    ? "Coordinamos el valor del domicilio contigo por WhatsApp antes de despachar."
+                    : datos.shippingZoneId
+                      ? "Elegiste esta zona. Si no es la tuya, cámbiala aquí."
+                      : "La elegimos por tu ciudad y tu barrio. Puedes cambiarla."}
+                  {zonasOfrecidas.find((z) => z.id === zonaElegida)?.note
+                    ? ` ${zonasOfrecidas.find((z) => z.id === zonaElegida)!.note}`
+                    : ""}
+                </p>
                 <label>
                   <span className={labelClass}>Dirección</span>
                   <Input
@@ -625,6 +750,19 @@ export function CheckoutFlow() {
                 />
               )}
 
+              {sinCotizacion && (
+                <div className="mt-6 rounded-md border border-oro bg-arena p-4">
+                  <p className="text-sm leading-relaxed">
+                    Falta acordar el domicilio a esta dirección. Escríbenos y
+                    una asesora te confirma el valor y cierra el pedido
+                    contigo; no perdemos nada de lo que ya elegiste.
+                  </p>
+                  <WhatsAppCta message={mensajeDomicilio} className="mt-3">
+                    Coordinar mi domicilio
+                  </WhatsAppCta>
+                </div>
+              )}
+
               <div className="mt-6 flex gap-3">
                 <Button
                   variant="ghost"
@@ -635,14 +773,18 @@ export function CheckoutFlow() {
                 </Button>
                 <Button
                   className="flex-1"
-                  disabled={enviando || vacia || conflictos !== null}
+                  disabled={
+                    enviando || vacia || conflictos !== null || sinCotizacion
+                  }
                   onClick={confirmar}
                 >
                   {redirigiendo
                     ? "Llevándote al pago…"
                     : enviando
                       ? "Confirmando…"
-                      : "Confirmar pedido"}
+                      : sinCotizacion
+                        ? "Falta el domicilio"
+                        : "Confirmar pedido"}
                 </Button>
               </div>
             </div>
@@ -670,15 +812,37 @@ export function CheckoutFlow() {
                   </span>
                 </div>
               ))}
+              <div className="mt-1 flex justify-between gap-3 border-t border-linea pt-3">
+                <span>Subtotal</span>
+                <span className="tabular shrink-0">{formatCOP(subtotal)}</span>
+              </div>
+              {/* El domicilio no aparece como número hasta que hay dirección:
+                  mostrar uno antes sería adivinarlo y después corregirlo. */}
               <div className="flex justify-between gap-3 text-suave">
-                <span>Envío discreto</span>
+                <span className="min-w-0">
+                  Envío discreto
+                  {cotizacion?.status === "QUOTED" && (
+                    <span className="block text-xs text-tenue">
+                      {cotizacion.zoneName}
+                    </span>
+                  )}
+                </span>
                 <span className="tabular shrink-0">
-                  {formatCOP(SHIPPING_CENTS)}
+                  {envioCents !== null
+                    ? formatCOP(envioCents)
+                    : sinCotizacion
+                      ? "A convenir"
+                      : "Se calcula con tu dirección"}
                 </span>
               </div>
               <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-linea pt-3">
                 <span className="font-medium text-tinta">Total</span>
-                <Price cents={total} size="lg" />
+                <span className="flex shrink-0 items-baseline gap-1.5">
+                  <Price cents={total} size="lg" />
+                  {envioCents === null && (
+                    <span className="text-xs text-tenue">+ envío</span>
+                  )}
+                </span>
               </div>
             </div>
           )}
@@ -687,11 +851,18 @@ export function CheckoutFlow() {
             <Badge>Remitente genérico</Badge>
             <Badge variant="exito">Garantía 6 meses</Badge>
           </div>
+          {/* El canal real del negocio, siempre a la vista: negociar el
+              domicilio por WhatsApp queda disponible aunque ya haya una
+              tarifa calculada, no solo cuando no hay ninguna. */}
           <WhatsAppCta
-            message="Hola, necesito ayuda con mi pedido"
+            message={
+              direccionLista
+                ? mensajeDomicilio
+                : "Hola, necesito ayuda con mi pedido"
+            }
             className="mt-4 w-full"
           >
-            ¿Ayuda? Escríbenos
+            {direccionLista ? "Coordinar el domicilio" : "¿Ayuda? Escríbenos"}
           </WhatsAppCta>
         </aside>
       </div>

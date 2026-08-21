@@ -6,6 +6,15 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Query modules mark themselves `server-only`, which throws outside the
+      // react-server condition. Vitest is not a browser and not a Client
+      // Component — it resolves to the package's own empty stub, the same one
+      // Next hands a Server Component, so the guard keeps protecting the app
+      // without making its modules untestable.
+      "server-only": path.resolve(
+        __dirname,
+        "./node_modules/server-only/empty.js",
+      ),
     },
   },
   test: {

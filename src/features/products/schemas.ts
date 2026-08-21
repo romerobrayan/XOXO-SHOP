@@ -1,22 +1,39 @@
 import { z } from "zod";
 
 import { ProductStatus } from "@/generated/prisma/enums";
+import { pesosToCents as pesosToCentsWithin } from "@/lib/pesos";
 
-// Cents come from a text input as pesos ("120.000" or "120000"), so the
-// schema owns the conversion: strip separators, multiply once, integers only
-// after that. Money never travels as a float (CLAUDE.md rule 1).
-export const pesosToCents = z
-  .string()
-  .trim()
-  .regex(/^\$?\s*\d{1,3}(\.\d{3})*$|^\$?\s*\d+$/, "Precio inválido")
-  .transform((raw) => Number(raw.replace(/[^\d]/g, "")) * 100);
+// Bounds are Wompi's own documented limits for the Agregador model (the
+// project's payment model — CLAUDE.md "Payments"), not arbitrary numbers:
+// COP 1.500 is Wompi's documented minimum transaction amount, and
+// COP 10.000.000 is its per-transaction ceiling for the "persona jurídica"
+// tier (the more generous of its two Agregador tiers), used here as the
+// upper bound on a single product's price. Real catalog prices sit at
+// COP 45.000–120.000. https://soporte.wompi.co/hc/es-419/articles/360038824313
+export const PRICE_MIN_CENTS = 150_000; // COP 1.500
+export const PRICE_MAX_CENTS = 1_000_000_000; // COP 10.000.000
+
+export const pesosToCents = pesosToCentsWithin({
+  min: PRICE_MIN_CENTS,
+  max: PRICE_MAX_CENTS,
+  minMessage: "El precio no puede ser menor a $1.500",
+  maxMessage: "El precio no puede ser mayor a $10.000.000",
+});
 
 const productFields = {
-  name: z.string().trim().min(2, "El nombre es muy corto").max(160),
+  name: z
+    .string()
+    .trim()
+    .min(2, "El nombre es muy corto")
+    .max(100, "El nombre no puede tener más de 100 caracteres"),
   description: z.string().trim().max(4000).optional(),
   brandId: z.string().optional(),
   categoryId: z.string().optional(),
-  supplierRef: z.string().trim().max(40).optional(),
+  supplierRef: z
+    .string()
+    .trim()
+    .max(40, "La referencia no puede tener más de 40 caracteres")
+    .optional(),
   status: z.enum(ProductStatus),
 };
 
@@ -25,7 +42,7 @@ export const createProductSchema = z.object({
   // Every product ships with at least one variant, even option-less ones —
   // |V| = 1 for n = 0 (CLAUDE.md). The first variant is born here so the
   // invariant holds from the first row, not from the first edit.
-  sku: z.string().trim().min(2, "SKU muy corto").max(60),
+  sku: z.string().trim().min(2, "SKU muy corto").max(60, "El SKU no puede tener más de 60 caracteres"),
   priceCents: pesosToCents,
 });
 
@@ -56,7 +73,7 @@ export const generateVariantsSchema = z.object({
 
 export const updateVariantSchema = z.object({
   variantId: z.string().min(1),
-  sku: z.string().trim().min(2).max(60),
+  sku: z.string().trim().min(2, "SKU muy corto").max(60, "El SKU no puede tener más de 60 caracteres"),
   priceCents: pesosToCents,
   compareAtCents: pesosToCents.optional(),
   isActive: z.boolean(),

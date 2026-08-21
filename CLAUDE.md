@@ -104,6 +104,16 @@ npm run admin:dev            # dev-only panel login: admin@secreto.local /
 The storefront runs **with or without a database**: leave `DATABASE_URL` unset and the
 catalog queries answer from fixtures instead (see "Demo data" below).
 
+## Codebase exploration (optional)
+
+This repo can be explored as a knowledge graph via the `graphify` skill — `/graphify`
+from Claude Code, or the `graphify` CLI directly. It builds a node/edge map of the
+codebase (AST for code, semantic extraction for docs) with community detection, useful
+for "where is X" / "what connects to Y" questions at a fraction of the tokens a raw
+grep-and-read sweep costs. Output goes to `graphify-out/` (gitignored — regenerate
+locally with `/graphify --update` after pulling new commits rather than expecting a
+teammate's copy; sidecar files record a machine-local Python interpreter path).
+
 ## Database — two of them, on purpose
 
 **Neon is the primary database** (managed Postgres, `us-east-2`). It is up whether or
@@ -136,6 +146,7 @@ being safe the moment Neon holds a real order.
    trail; the columns on the variant are just the running balance.
 4. **`OrderItem` stores snapshots** — product name, SKU, option labels, unit price, copied
    at purchase time. Never resolve historical orders through a join to the live catalog.
+   `Order.shippingZoneName` is the same idea for the delivery fee.
 5. **No gateway SDK outside `src/payments/providers/`.** Everything else talks to the
    `PaymentProvider` interface.
 6. **Server Components by default.** `"use client"` only for real interactivity — option
@@ -151,6 +162,8 @@ src/app/(admin)        auth-gated panel
 src/features/*         domain logic — queries.ts, actions.ts, schemas.ts, components/
 src/features/import    supplier pipeline core shared by CLI and panel: staging
                        shape (Zod), normalization, pricing, promote-core
+src/features/shipping  delivery zones: zones.ts is the pure lookup shared by the
+                       panel, the checkout, /legal/envios and createOrder
 src/payments/          port + adapters, the only place gateway SDKs appear
 src/components/ui      shadcn primitives
 src/lib                db singleton, money, slug, utils; cloudinary.ts is the
@@ -214,6 +227,14 @@ Other model notes:
 **Stripe is out — twice over.** Colombia is not a supported merchant country, and more
 decisively, Stripe's prohibited business list explicitly names sexually oriented items
 including adult toys. Shopify Payments is out for the same reason: it runs on Stripe.
+
+**Delivery fees are per zone, never a constant.** The client defines zones in
+`/admin/domicilios`; `resolveShipping()` in `src/features/shipping/zones.ts` walks
+specific → general → national and the browser only ever sends *which* zone was picked.
+`createOrder` re-resolves the fee server-side and refuses a zone the declared department
+is not offered. No match and no national zone means no order: the buyer is handed the
+WhatsApp channel instead of a made-up total. An empty zone table still quotes the historic
+$12.000 flat fee, so a deployment without zones behaves exactly as before.
 
 **PayU is the primary target.** Tienda Cereza, the scaled competitor in this market,
 publicly processes cards through PayU — so the category is demonstrably underwritten in
