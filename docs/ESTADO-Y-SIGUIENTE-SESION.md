@@ -177,6 +177,15 @@ el domicilio cobrado por zona en vez de una tarifa plana.**
   consultas de zonas se marca `server-only` y eso hacía intestable el Server
   Action que lo importa.
 
+**Se creó `docs/PRUEBAS-Y-AUDITORIA.md`.** El plan de entrega del spec nunca definió
+una fase de verificación: los criterios de éxito pedían cosas medibles pero ningún
+documento decía quién las mide ni con qué se aprueban. El nuevo documento fija seis
+frentes (seguridad, dinero e inventario, privacidad, accesibilidad, rendimiento y
+operación), cada uno con criterio de aprobación, la checklist de lanzamiento y la
+cadencia. Trae cinco hallazgos abiertos verificados contra el repo — los dos
+primeros, sin límite de tasa y sin cabeceras de seguridad, son bloqueantes de
+lanzamiento.
+
 **Para desplegar esto hace falta una migración**: `20260819030322_shipping_zones`
 crea `ShippingZone`, `ShippingZoneArea` y agrega `Order.shippingZoneName`, así que
 Neon necesita `npx prisma migrate deploy` (nunca `migrate dev`, nunca `db push`).
@@ -1079,6 +1088,10 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | `mediaForSelection` sin cablear              | Fotos por color elegido: implementado y testeado, pero conectar la galería al picker exige reestructurar el PDP en isla cliente (hoy `Gallery` y `PurchasePanel` son hermanos server). Evaluado y diferido                                |
 | Icono Mail de la asesoría sin destino        | Ya existe correo del negocio y está en el footer, pero el bloque de asesoría de la home sigue con el icono decorativo y su formulario de newsletter. Revisarlo cuando se defina si el newsletter se conecta a algo                        |
 | `package.json` sigue llamándose `xoxo-store` | Cosmético, sin urgencia. El repo también. Solo importa lo que ve el cliente                                                                                                                                                               |
+| Sin límite de tasa en rutas públicas         | `createOrder` es pública, sin sesión, escribe en la base y reserva inventario por 72 h en contra entrega. Un script puede agotar el stock sin pagar. Alto. Ver `docs/PRUEBAS-Y-AUDITORIA.md` §3.1                                                                     |
+| Sin cabeceras de seguridad                   | `next.config.ts` solo fija `bodySizeLimit`: no hay CSP, HSTS, `X-Frame-Options` ni `Referrer-Policy`. En una tienda cuya promesa es la discreción, la última importa más de lo normal. Ver §3.2                                                                      |
+| Age gate, carrito y admin sin pruebas        | Tres superficies con cero pruebas propias: la puerta 18+ (requisito de cumplimiento), el store del carrito (incluida la migración de `localStorage`) y la guarda de sesión del panel. Ver §3.3                                                                        |
+| Accesibilidad sin revisar                    | Nadie ha recorrido la tienda con teclado ni lector de pantalla. Detectado ya: en los formularios del panel la nota de ayuda vive dentro del `<label>` y se pega al nombre accesible del campo. Ver §3.5                                                              |
 | Lighthouse sin medir                         | El criterio de éxito del spec (≥ 90 móvil) no se ha verificado; medirlo con imágenes reales, no con placeholders                                                                                                                          |
 | Descriptor de pago sin acordar               | `SECRETO BTQ` es la propuesta del handoff; hay que confirmarla con la pasarela en el onboarding                                                                                                                                           |
 

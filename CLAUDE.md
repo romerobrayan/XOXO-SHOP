@@ -5,6 +5,7 @@ Guidance for Claude Code when working in this repository.
 - Full specification: `docs/XOXO_TECHNICAL_SPEC.md`
 - Current state, open debt, and what to do next: `docs/ESTADO-Y-SIGUIENTE-SESION.md`
 - Supplier catalog import (staging → curation → promote): `docs/IMPORT-PROVEEDORES.md`
+- Test and audit plan, plus the launch checklist: `docs/PRUEBAS-Y-AUDITORIA.md`
 - Design source of truth: `design_handoff_web_secreto/`
 - `docs/archive/` holds the **pre-rebrand** design docs (neon direction). They are
   historical — never take design direction from them.
