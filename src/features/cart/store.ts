@@ -14,12 +14,13 @@ export type CartItem = {
   kicker: string | null;
   // Chosen option values, e.g. "M · Negro". Null for single-variant products.
   variantLabel: string | null;
+  // Cover photo, already a Cloudinary card-crop URL (coverImage()). Null when
+  // the product has no photography yet — the bag row then renders the striped
+  // ProductImagePlaceholder, never a stand-in photo (CLAUDE.md).
+  imageUrl: string | null;
   priceCents: number;
   qty: number;
 };
-
-// Flat shipping fee — declared once, next to the server-side order math.
-export { SHIPPING_CENTS } from "@/features/checkout/shipping";
 
 type CartState = {
   items: CartItem[];
@@ -75,6 +76,20 @@ export const useCart = create<CartState>()(
       // Rehydration is deferred to CartHydration (an effect) so the first
       // client render matches SSR and hydration never mismatches.
       skipHydration: true,
+      // v1 added CartItem.imageUrl. A bag persisted before it exists in real
+      // browsers right now, and an item without the key would render
+      // `undefined` into an <img src>; the migration normalizes it to null so
+      // those rows fall back to the placeholder instead.
+      version: 1,
+      migrate: (persisted) => {
+        const state = persisted as { items?: Partial<CartItem>[] } | undefined;
+        return {
+          items: (state?.items ?? []).map((item) => ({
+            ...(item as CartItem),
+            imageUrl: item.imageUrl ?? null,
+          })),
+        } as CartState;
+      },
     },
   ),
 );

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalArticle } from "@/components/site/LegalArticle";
-import { SHIPPING_CENTS } from "@/features/checkout/shipping";
+import { getShippingZones } from "@/features/shipping/queries";
+import { hasNationalZone } from "@/features/shipping/zones";
 import { WHATSAPP_DISPLAY, whatsappHref } from "@/lib/contact";
 import { legalPage } from "@/lib/legal";
 import { formatCOP } from "@/lib/money";
@@ -14,15 +15,28 @@ export const metadata: Metadata = {
   description: page.description,
 };
 
-// Política de envíos. La tarifa sale de SHIPPING_CENTS —la misma constante que
-// cobra el checkout— para que la página publicada y el cobro real no puedan
-// divergir: cuando la clienta confirme su tarifa (plana, por ciudad o gratis
-// desde un monto, ESTADO §6), cambia una constante y cambian las dos.
+// Misma razón que en /checkout: la promesa de esta página es que lo publicado
+// y lo cobrado no pueden divergir. Prerenderizada, publicaría las zonas del
+// build en vez de las vigentes.
+export const dynamic = "force-dynamic";
+
+// Política de envíos. Las tarifas salen de las MISMAS zonas que cobra el
+// checkout (src/features/shipping/queries.ts), así que la página publicada y
+// el cobro real no pueden divergir: la clienta edita una zona en
+// /admin/domicilios y cambian las dos. Mientras no haya zonas cargadas, la
+// consulta responde con la tarifa plana histórica y la página se lee como
+// siempre — un solo precio nacional.
 //
 // PENDIENTE: el remitente exacto que va impreso en la guía. Acá se promete lo
 // que sí está decidido —remitente neutro, sin marca ni categoría— sin
 // comprometer una cadena concreta que la clienta todavía no eligió.
-export default function EnviosPage() {
+export default async function EnviosPage() {
+  const zones = await getShippingZones();
+  const cubreTodoElPais = hasNationalZone(zones);
+  // Con una sola zona no hay tabla que mostrar: es una tarifa, y se dice en
+  // una frase.
+  const tarifaUnica = zones.length === 1 ? zones[0] : null;
+
   return (
     <LegalArticle
       slug="envios"
@@ -36,12 +50,41 @@ export default function EnviosPage() {
       </p>
 
       <h2>Cuánto cuesta</h2>
-      <p>
-        El envío tiene una tarifa de{" "}
-        <strong>{formatCOP(SHIPPING_CENTS)}</strong> a cualquier destino del
-        país. Lo ves sumado en el resumen antes de confirmar el pedido, nunca
-        después.
-      </p>
+      {tarifaUnica ? (
+        <p>
+          El envío tiene una tarifa de{" "}
+          <strong>{formatCOP(tarifaUnica.priceCents)}</strong> a cualquier
+          destino del país. Lo ves sumado en el resumen antes de confirmar el
+          pedido, nunca después.
+        </p>
+      ) : (
+        <>
+          <p>
+            El domicilio depende de a dónde va, porque a nosotros también nos
+            cuesta distinto. Estas son las tarifas vigentes:
+          </p>
+          <ul>
+            {zones.map((zone) => (
+              <li key={zone.id}>
+                <strong>{zone.name}</strong> — {formatCOP(zone.priceCents)}
+                {zone.areas.length > 0 && <>. Cubre {zone.areas.join(", ")}</>}
+                {zone.kind === "GENERAL" && zone.department && (
+                  <>. Resto de {zone.department}</>
+                )}
+                {zone.note && <>. {zone.note}</>}
+              </li>
+            ))}
+          </ul>
+          <p>
+            Escribes tu ciudad y tu barrio en el segundo paso del checkout y el
+            resumen te muestra el valor exacto antes de confirmar, nunca
+            después.{" "}
+            {cubreTodoElPais
+              ? "Si tu dirección no calza en ninguna zona de la lista, aplica la tarifa nacional."
+              : "Si tu dirección no calza en ninguna zona de la lista, lo coordinamos contigo por WhatsApp antes de despachar."}
+          </p>
+        </>
+      )}
 
       <h2>Cuánto se demora</h2>
       <p>

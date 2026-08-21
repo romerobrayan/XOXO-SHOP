@@ -1,5 +1,7 @@
 "use server";
 
+import { getShippingZones } from "@/features/shipping/queries";
+import { resolveShipping } from "@/features/shipping/zones";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { actionClient } from "@/lib/safe-action";
@@ -8,7 +10,6 @@ import { releaseExpiredReservations } from "./expiry";
 import { generateOrderNumber } from "./order-number";
 import { initiateOnlinePayment } from "./payment-initiation";
 import { createOrderSchema } from "./schemas";
-import { SHIPPING_CENTS } from "./shipping";
 import { OutOfStockError, reserveStock } from "./stock";
 
 // Reservation windows, in hours. Contra entrega follows spec §6.4 option 2
@@ -42,6 +43,10 @@ export type CreateOrderResult =
   // DATABASE_URL unset — the fixtures-only preview. The bag works, orders
   // cannot: fail with an honest message instead of a crash.
   | { ok: false; code: "DEMO_MODE" }
+  // No delivery zone covers this address, or the buyer asked to settle the
+  // fee with an advisor. There is no total to charge, so there is no order:
+  // the UI hands them the WhatsApp channel instead of inventing a number.
+  | { ok: false; code: "SHIPPING_UNQUOTED" }
   | { ok: false; code: "CONFLICTS"; conflicts: LineConflict[] };
 
 export const createOrder = actionClient
@@ -149,7 +154,21 @@ export const createOrder = actionClient
       (sum, item) => sum + byId.get(item.variantId)!.priceCents * item.qty,
       0,
     );
-    const totalCents = subtotalCents + SHIPPING_CENTS;
+
+    // The delivery fee is re-derived here from the address, never taken from
+    // the client: the browser sends which zone it picked, this resolves what
+    // that zone actually costs — and refuses a zone the department is not
+    // offered (see resolveShipping).
+    const shipping = resolveShipping(await getShippingZones(), {
+      department: delivery.department,
+      ciudad: delivery.ciudad,
+      barrio: delivery.barrio,
+      zoneId: delivery.shippingZoneId,
+    });
+    if (shipping.status === "UNQUOTED") {
+      return { ok: false, code: "SHIPPING_UNQUOTED" };
+    }
+    const totalCents = subtotalCents + shipping.priceCents;
 
     // OrderItem stores snapshots (CLAUDE.md rule 4): catalog edits must
     // never rewrite what this customer bought at what price.
@@ -223,7 +242,8 @@ export const createOrder = actionClient
               guestEmail: delivery.email,
               guestPhone: delivery.celular,
               subtotalCents,
-              shippingCents: SHIPPING_CENTS,
+              shippingCents: shipping.priceCents,
+              shippingZoneName: shipping.zoneName,
               totalCents,
               reservationExpiresAt,
               items: { create: itemRows },

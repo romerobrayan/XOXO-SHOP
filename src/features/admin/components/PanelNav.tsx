@@ -10,6 +10,7 @@ const TABS = [
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/productos", label: "Productos" },
   { href: "/admin/proveedores", label: "Proveedores" },
+  { href: "/admin/domicilios", label: "Domicilios" },
 ];
 
 export function PanelNav() {

@@ -102,7 +102,16 @@ export default async function PedidoPage({
 
         <dl className="mt-4 grid gap-1 border-t border-linea pt-4 text-sm">
           <Row label="Subtotal" value={formatCOP(order.subtotalCents)} />
-          <Row label="Envío" value={formatCOP(order.shippingCents)} />
+          <Row
+            // Qué zona fijó la tarifa: el mensajero cobra por eso, así que el
+            // panel lo muestra en vez de dejar un número solo.
+            label={
+              order.shippingZoneName
+                ? `Envío · ${order.shippingZoneName}`
+                : "Envío"
+            }
+            value={formatCOP(order.shippingCents)}
+          />
           {order.discountCents > 0 ? (
             <Row
               label="Descuento"

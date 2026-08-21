@@ -8,11 +8,15 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import {
+  FALLBACK_SHIPPING_CENTS,
+  normalizeArea,
+  WHATSAPP_ZONE_ID,
+} from "@/features/shipping/zones";
 import { PrismaClient } from "@/generated/prisma/client";
 import { getPaymentProvider } from "@/payments";
 import { createOrder } from "./actions";
 import { releaseExpiredReservations } from "./expiry";
-import { SHIPPING_CENTS } from "./shipping";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -55,6 +59,7 @@ describe.skipIf(!databaseUrl)("createOrder", () => {
       where: { customerId: null, orders: { none: {} } },
     });
     await db.product.deleteMany({ where: { id: PRODUCT_ID } });
+    await db.shippingZone.deleteMany({ where: { name: { startsWith: "TEST-ZONA" } } });
   };
 
   beforeEach(async () => {
@@ -110,7 +115,7 @@ describe.skipIf(!databaseUrl)("createOrder", () => {
     expect(order.guestPhone).toBe("3001234567"); // normalized by the schema
     expect(order.discreetPackaging).toBe(true);
     expect(order.subtotalCents).toBe(PRICE_A * 2 + PRICE_B);
-    expect(order.totalCents).toBe(PRICE_A * 2 + PRICE_B + SHIPPING_CENTS);
+    expect(order.totalCents).toBe(PRICE_A * 2 + PRICE_B + FALLBACK_SHIPPING_CENTS);
 
     // ~72h reservation window for contra entrega
     const hours =
@@ -296,7 +301,7 @@ describe.skipIf(!databaseUrl)("createOrder", () => {
     expect(payments[0].providerReference).not.toBeNull();
     expect(payments[0].status).toBe("PENDING");
     expect(payments[0].method).toBeNull();
-    expect(payments[0].amountCents).toBe(PRICE_A * 2 + PRICE_B + SHIPPING_CENTS);
+    expect(payments[0].amountCents).toBe(PRICE_A * 2 + PRICE_B + FALLBACK_SHIPPING_CENTS);
 
     const order = await db.order.findUniqueOrThrow({
       where: { id: data.orderId },
@@ -349,4 +354,106 @@ describe.skipIf(!databaseUrl)("createOrder", () => {
     expect(payments[0].method).toBe("CASH_ON_DELIVERY");
     expect(payments[0].providerReference).toBeNull();
   });
+
+  // ─── Domicilio por zona ────────────────────────────────────
+  // The fee is money, so it is resolved server-side against the configured
+  // zones — never taken from the client.
+  //
+  // These assert properties that hold whatever zones the database already
+  // has: a SPECIFIC zone whose area matches always outranks the general and
+  // national fallbacks, and a refused pick is one that does NOT get that
+  // zone's price. The exhaustive ladder (general → national → nothing) is
+  // covered by the pure tests in src/features/shipping/zones.test.ts, which
+  // own their zone list outright.
+  describe("delivery fee", () => {
+    const ZONE_NAME = "TEST-ZONA Barrio de prueba";
+    const ZONE_PRICE = 7_500_00;
+    // Deliberately synthetic: the [department, matchKey] index is unique, so
+    // a real barrio name could collide with a zone the developer configured.
+    const ZONE_AREA = "Barrio De Prueba Secreto";
+
+    const createZone = () =>
+      db.shippingZone.create({
+        data: {
+          name: ZONE_NAME,
+          kind: "SPECIFIC",
+          department: "Antioquia",
+          priceCents: ZONE_PRICE,
+          areas: {
+            create: {
+              label: ZONE_AREA,
+              matchKey: normalizeArea(ZONE_AREA),
+              department: "Antioquia",
+            },
+          },
+        },
+      });
+
+    it("charges the zone that covers the address and snapshots its name", async () => {
+      await createZone();
+      const input = freshInput();
+      const result = await createOrder({
+        ...input,
+        // Lower case and unaccented on purpose: the match normalizes both
+        // sides, so what the buyer types never has to be exact.
+        delivery: { ...input.delivery, barrio: ZONE_AREA.toLowerCase() },
+      });
+      const data = result.data;
+      expect(data?.ok).toBe(true);
+      if (!data?.ok) return;
+
+      const order = await db.order.findUniqueOrThrow({
+        where: { id: data.orderId },
+      });
+      expect(order.shippingCents).toBe(ZONE_PRICE);
+      expect(order.shippingZoneName).toBe(ZONE_NAME);
+      expect(order.totalCents).toBe(PRICE_A * 2 + PRICE_B + ZONE_PRICE);
+    });
+
+    it("ignores a zone the address's department is not offered", async () => {
+      // The tampering case: a Bogotá address asking for the Medellín fee.
+      // Whatever it ends up paying, it must not be this zone's price.
+      const zone = await createZone();
+      const input = freshInput();
+      const result = await createOrder({
+        ...input,
+        delivery: {
+          ...input.delivery,
+          department: "Bogotá D.C.",
+          ciudad: "Bogotá",
+          shippingZoneId: zone.id,
+        },
+      });
+      const data = result.data;
+      if (data?.ok) {
+        const order = await db.order.findUniqueOrThrow({
+          where: { id: data.orderId },
+        });
+        expect(order.shippingZoneName).not.toBe(ZONE_NAME);
+        expect(order.shippingCents).not.toBe(ZONE_PRICE);
+      } else {
+        // No zone covers Bogotá at all — also a refusal, never a discount.
+        expect(data).toEqual({ ok: false, code: "SHIPPING_UNQUOTED" });
+      }
+    });
+
+    it("creates no order when the buyer settles the fee on WhatsApp", async () => {
+      await createZone();
+      const input = freshInput();
+      const result = await createOrder({
+        ...input,
+        delivery: { ...input.delivery, shippingZoneId: WHATSAPP_ZONE_ID },
+      });
+      expect(result.data).toEqual({ ok: false, code: "SHIPPING_UNQUOTED" });
+      expect(
+        await db.order.count({ where: { idempotencyKey: input.idempotencyKey } }),
+      ).toBe(0);
+      // Nothing reserved either: a refused order must not hold stock.
+      const variant = await db.productVariant.findUniqueOrThrow({
+        where: { id: VARIANT_A },
+      });
+      expect(variant.stockReserved).toBe(0);
+    });
+  });
+
 });

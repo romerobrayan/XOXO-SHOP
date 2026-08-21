@@ -182,13 +182,13 @@ model ProductMedia {
   optionValueId String?
   optionValue   ProductOptionValue? @relation(fields: [optionValueId], references: [id], onDelete: SetNull)
 
-  type MediaType @default(IMAGE)
-  url  String
+  type      MediaType @default(IMAGE)
+  url       String
   // Cover frame for videos — required in practice for type VIDEO so the
   // gallery never autoplays; playback is tap-to-play, muted by default.
   posterUrl String?
   alt       String
-  position  Int    @default(0)
+  position  Int       @default(0)
 
   // One row per delivery URL within a product — the invariant the import
   // always kept by hand; the panel's content-addressed uploads lean on the
@@ -227,13 +227,13 @@ model SupplierStagingProduct {
   suggestedRetailCents Int?
   priceVariesByVariant Boolean @default(false)
 
-  optionCount Int     @default(0)
-  imageCount  Int     @default(0)
+  optionCount     Int     @default(0)
+  imageCount      Int     @default(0)
   // First supplier image, hotlinked ONLY inside the panel while curating —
   // published products always re-host on Cloudinary instead.
   previewImageUrl String?
   // Supplier availability at fetch time — reference only.
-  available Boolean @default(true)
+  available       Boolean @default(true)
 
   // The complete StagedProduct (src/features/import/staging.ts), validated
   // with stagedProductSchema before any promote reads it.
@@ -340,6 +340,68 @@ enum DocumentType {
   PP // pasaporte
 }
 
+// ─── Domicilios ─────────────────────────────────────────────
+// El costo del domicilio depende de la ubicación, no del pedido: dentro de
+// Medellín varía por zona, el área metropolitana tiene su propia tarifa y el
+// resto del país otra. La clienta define esas zonas desde /admin/domicilios;
+// el checkout resuelve la tarifa contra ellas y la congela en
+// Order.shippingCents al crear el pedido.
+model ShippingZone {
+  id   String           @id @default(cuid())
+  name String
+  kind ShippingZoneKind
+
+  // Obligatorio para SPECIFIC y GENERAL, null para NATIONAL: una zona
+  // específica y el "resto de" viven dentro de un departamento; el domicilio
+  // nacional es justamente el que no lo tiene.
+  department String?
+
+  // Centavos, como todo el dinero del proyecto (CLAUDE.md regla 1). 0 es
+  // válido: es como se declara un domicilio gratis.
+  priceCents Int
+
+  // Nota que ve la clienta en el checkout ("Entrega el mismo día").
+  note String?
+
+  // Desactivar en vez de borrar conserva la zona para volver a activarla sin
+  // recargar la lista de ubicaciones.
+  isActive Boolean @default(true)
+
+  areas ShippingZoneArea[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, kind])
+}
+
+enum ShippingZoneKind {
+  SPECIFIC // ubicaciones concretas: los barrios o municipios listados en areas
+  GENERAL // resto del departamento — el "domicilio general" del área metropolitana
+  NATIONAL // resto de Colombia; el último escalón, sin departamento
+}
+
+// Una ubicación cubierta por una zona: lo que la clienta escribió (label) y su
+// forma normalizada (matchKey), que es contra la que el checkout compara la
+// ciudad o el barrio del comprador.
+model ShippingZoneArea {
+  id     String       @id @default(cuid())
+  zoneId String
+  zone   ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  label    String
+  matchKey String
+
+  // Copiado de la zona al guardar (las areas se reescriben completas en cada
+  // edición, así que no se desincroniza) para que la base pueda garantizar lo
+  // que importa: una misma ubicación no puede estar en dos zonas con precios
+  // distintos.
+  department String
+
+  @@unique([department, matchKey])
+  @@index([zoneId])
+}
+
 model Order {
   id          String @id @default(cuid())
   // Short, human-readable code the customer quotes on WhatsApp — "SECRETO-7F3K2M".
@@ -367,6 +429,11 @@ model Order {
   shippingCents Int @default(0)
   discountCents Int @default(0)
   totalCents    Int
+
+  // Snapshot de la zona que fijó shippingCents, como todo lo demás del pedido
+  // (CLAUDE.md regla 4): renombrar o borrar una zona no puede reescribir lo
+  // que se le cobró a este comprador. Null en pedidos anteriores a las zonas.
+  shippingZoneName String?
 
   // Discretion is a functional requirement, not a preference.
   discreetPackaging Boolean @default(true)
@@ -407,9 +474,9 @@ model OrderItem {
   variantId String?
   variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
-  productName String
-  brandName   String?
-  variantSku  String
+  productName     String
+  brandName       String?
+  variantSku      String
   // Human-readable at purchase time, e.g. "Talla: S · Color: Negro".
   // Empty string for option-less products.
   variantLabel    String
@@ -431,12 +498,12 @@ model Payment {
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   provider          String // "wompi" | "payu" | "mock" — never "stripe", see spec §2
-  providerReference String? @unique
+  providerReference String?        @unique
   // Null between initiating an ONLINE payment and its first webhook: the
   // gateway's checkout picks the actual rail (CARD / PSE / NEQUI…) and only
   // the event knows it. Contra entrega and manual transfer set it at creation.
-  method PaymentMethod?
-  status PaymentStatus  @default(PENDING)
+  method            PaymentMethod?
+  status            PaymentStatus  @default(PENDING)
 
   amountCents Int
 
