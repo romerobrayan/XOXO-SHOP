@@ -69,7 +69,11 @@ export const stagedImageSchema = z.object({
 export const stagedProductSchema = z.object({
   supplierRef: z
     .string()
-    .regex(/^(distrisex|climax):.+$/, "supplierRef must be namespaced"),
+    .regex(/^(distrisex|climax):.+$/, "supplierRef must be namespaced")
+    // promote-core copies this straight into Product.supplierRef, which is
+    // VARCHAR(80). Catch an over-long ref here, where the error names the
+    // product, instead of at the Postgres write where it names a column.
+    .max(80, "supplierRef must be at most 80 characters"),
   supplier: z.enum(["distrisex", "climax"]),
   supplierUrl: z.string(),
   name: z.string().min(1),
