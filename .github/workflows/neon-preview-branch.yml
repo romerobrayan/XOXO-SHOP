@@ -1,0 +1,72 @@
+# Neon GitHub integration (Neon Console → Integrations → GitHub).
+#
+# Every PR gets its own throwaway Neon branch, forked from the project's
+# primary branch. `prisma migrate deploy` runs against that branch so a new
+# migration is proven to apply cleanly on real managed Postgres — not just the
+# postgres:18-alpine container in ci.yml — before it ever reaches the primary
+# branch that Vercel Preview/Production read (docs/NEON-CLOUD.md). The branch
+# is deleted when the PR closes, merged or not.
+#
+# This never touches the primary branch: it only writes to its own per-PR
+# child, so it does not violate CLAUDE.md's "never run migrate dev/reset/db
+# push against Neon" rule — that rule is about the primary branch, and this
+# workflow only ever runs `migrate deploy` (apply-only, no shadow database)
+# against a disposable one.
+#
+# Requires NEON_API_KEY (secret) and NEON_PROJECT_ID (variable) — both added
+# automatically by the Neon GitHub integration.
+name: Neon preview branch
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, reopened, synchronize, closed]
+
+concurrency:
+  group: neon-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  migrate-preview-branch:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create Neon branch
+        id: neon_branch
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch_name: preview/pr-${{ github.event.pull_request.number }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install (postinstall runs prisma generate)
+        run: npm ci
+
+      - name: Apply migrations to the preview branch
+        env:
+          # Direct endpoint, not pooled — migrate deploy needs Prisma's
+          # advisory locks, which the pooler breaks in transaction mode.
+          DATABASE_URL: ${{ steps.neon_branch.outputs.db_url }}
+        run: npx prisma migrate deploy
+
+  delete-preview-branch:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Delete Neon branch
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: preview/pr-${{ github.event.pull_request.number }}
