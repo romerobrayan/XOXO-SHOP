@@ -46,7 +46,11 @@ model Product {
   description String?       @db.Text
   status      ProductStatus @default(DRAFT)
 
-  supplierRef String? @db.VarChar(40) // supplier reference, e.g. "11362" — already in use
+  // Two writers, one column: a human typing "11362" in the panel (Zod caps that
+  // at 40) and promote-core copying a namespaced staging ref straight in —
+  // "climax:<handle>" is a full slug and runs past 40. The column has to fit
+  // the widest writer; stagedProductSchema caps the pipeline at the same 80.
+  supplierRef String? @db.VarChar(80) // "11362" | "climax:lubricante-de-silicona-30-ml-sen-intimo"
 
   brandId    String?
   brand      Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)

@@ -4,7 +4,14 @@ Documento vivo. Se actualiza al final de cada sesión de trabajo: qué quedó he
 quedó abierto y qué sigue. Si vas a retomar el proyecto, **lee esto primero y después
 `CLAUDE.md`**.
 
-**Última actualización:** 13 de agosto de 2026 — sesión "Bloque I: la clienta
+**Última actualización:** 28 de agosto de 2026 — sesión "Despliegue a Neon y
+el bound de supplierRef". Las migraciones pendientes se aplicaron a Neon y
+producción volvió: `/checkout` y `/legal/envios` llevaban días devolviendo 500
+porque `develop` se mergeó a `main` (PR #22) sin que nadie corriera
+`migrate deploy` después. La corrida destapó además que `product_field_bounds`
+nunca podía aplicarse contra la base real — ver §3 y las dos deudas nuevas.
+
+**Antes** — 13 de agosto de 2026 — sesión "Bloque I: la clienta
 cura desde el panel". La curaduría completa del catálogo ya no depende de esta
 máquina: fotos de producto que se suben desde el celular o el computador a
 Cloudinary (sin EXIF/GPS en lo que sirve la tienda), el staging de los 1.275
@@ -81,6 +88,59 @@ ni en los fixtures.
 ---
 
 ## 3. Qué se hizo en esta sesión
+
+**Objetivo: aplicar en Neon las migraciones que faltaban. Terminó siendo una
+restauración de producción y un bound mal calculado.**
+
+- **Producción estaba caída y nadie lo sabía.** La sesión anterior cerró
+  anotando que faltaba `migrate deploy` contra Neon, con la tranquilidad de que
+  "un merge a `develop` no despliega producción". Para cuando se retomó, alguien
+  ya había mergeado `develop` → `main` (PR #22), Vercel desplegó solo, y como
+  `/checkout` y `/legal/envios` pasaron a `force-dynamic` leyendo `ShippingZone`
+  en cada request, las dos devolvían **500**. El resto del sitio respondía 200,
+  que es justo por qué pasó desapercibido: la portada y el catálogo se veían
+  bien. **No se podía comprar.**
+
+- **Neon estaba tres migraciones atrás, no una.** `migrate status` mostró
+  pendientes `bloque_i_staging_proveedores_y_media_unica`,
+  `product_field_bounds` y `shipping_zones`. Antes de aplicarlas se corrió un
+  pre-flight de solo lectura contra Neon —las dos primeras imponen constraints
+  que pueden fallar contra datos ya existentes— y encontró un bloqueante real.
+
+- **`product_field_bounds` no podía aplicarse, y el bug no era el dato.**
+  Acotaba `Product.supplierRef` a `VARCHAR(40)`, número tomado del Zod del
+  panel, donde una persona teclea `11362`. Pero esa columna tiene un segundo
+  escritor: `promote-core` copia el ref del staging tal cual, y
+  `normalize-climax` lo arma como `` climax:${handle} `` — un slug completo que
+  `stagedProductSchema` no acotaba de ningún modo. El primer Climax en
+  producción carga `climax:lubricante-de-silicona-30-ml-sen-intimo`, 46
+  caracteres. Con nombres descriptivos en español ese es el caso normal:
+  `climax:` deja 33 caracteres para un slug que suele necesitar más.
+
+  Truncar la fila era el arreglo tentador y el equivocado — `supplierRef` es la
+  clave de idempotencia del importador, así que un ref acortado hace que el
+  próximo *Publicar* cree un duplicado en vez de actualizar.
+
+- **Cómo se destrabó.** `product_field_bounds` se registró en Neon con
+  `prisma migrate resolve --applied` en vez de ejecutarse, y `migrate deploy`
+  aplicó las otras dos. Producción volvió a 200 sin tocar una sola fila. El
+  costo es explícito y está en la tabla de deuda: **el esquema desplegado no
+  tiene los bounds que su historial dice tener.** La migración correctiva
+  ([PR #25](https://github.com/romerobrayan/XOXO-SHOP/pull/25)) sube
+  `supplierRef` a `VARCHAR(80)`, le pone `.max(80)` a `stagedProductSchema` para
+  que un ref largo falle en validación nombrando el producto en vez de reventar
+  contra Postgres, y re-afirma los demás bounds de forma idempotente
+  (`SET DATA TYPE` es no-op si el tipo ya coincide; los `CHECK` usan
+  `DROP CONSTRAINT IF EXISTS` + `ADD`, porque Postgres no tiene
+  `ADD CONSTRAINT IF NOT EXISTS`). El `.max(40)` del panel se queda: es una
+  regla de UX para quien teclea, no una afirmación sobre la columna.
+
+- **Limpieza de ramas.** `develop` al día (PR #23 y #24 incluidos) y borradas
+  local y remotamente las cuatro ramas ya mergeadas
+  (`docs/graphify-tooling`, `feat/bloque-i-curacion-panel`,
+  `fix/product-field-bounds`, `claude/checkout-product-images-shipping-zones-exvsf4`).
+
+### Sesión anterior — 19 de agosto de 2026 — La bolsa con foto y el domicilio por zona
 
 **Objetivo: dos arreglos del checkout — la foto real del producto en la bolsa y
 el domicilio cobrado por zona en vez de una tarifa plana.**
@@ -1067,7 +1127,11 @@ Lo único que queda deliberadamente local es el Postgres de Docker, y solo porqu
 | URL de eventos de Wompi sin registrar        | El webhook está probado con eventos firmados con el secreto real, pero Wompi solo entrega a la URL cargada en su panel (Desarrollo → Programadores, modo prueba): `https://<host>/api/webhooks/wompi`. Sin eso, los pedidos online quedan `PENDING` hasta que una asesora los marque. Para probar en Vercel: llaves `pub_test_` y `PAYMENT_PROVIDER=wompi` **solo en Preview** |
 | Fotos propias pendientes                     | Los importados ya muestran la foto del proveedor vía Cloudinary; el demo sigue en placeholder. La sesión propia (arena, luz cálida) queda para lo que no tenga foto usable — ver Bloque E                                                 |
 | Descripciones sin pasada editorial           | El promote guarda la descripción del proveedor limpiada de HTML. El tono clínico SECRETO (material, medidas, cuidado) es una pasada editorial por producto que nadie ha hecho — ahora editable desde el panel, y el formulario ya lo recuerda con su hint                                                             |
-| Bloque I sin desplegar                       | Todo verificado en local y `CLOUDINARY_URL` ya cargada en Vercel. Para que la clienta lo use de verdad faltan dos pasos post-merge: `migrate deploy` en Neon (aditiva) y `npm run import:stage -- --neon`. Ver §3                                                                                                       |
+| **Neon sin los bounds que su historial declara** ⚠️ | `product_field_bounds` está marcada como aplicada en Neon (`migrate resolve --applied`) pero **nunca corrió ahí**: se usó para restaurar producción sin mutar una fila viva. Hoy Neon acepta escrituras que el esquema dice acotar (`name`, `supplierRef`, `sku`, y los dos `CHECK` de precio). No hay riesgo de dato *hoy* —la columna quedó más permisiva, no menos— pero converge recién cuando se mergee [PR #25](https://github.com/romerobrayan/XOXO-SHOP/pull/25) y se corra `migrate deploy` contra Neon. **Mientras siga abierta, ningún entorno coincide con otro** |
+| Merge a `main` sin `migrate deploy` no avisa | La causa raíz de la caída: `main` despliega solo, la migración es manual, y nada conecta las dos cosas. Un push a `main` con una migración pendiente rompe producción en silencio y solo se nota si alguien abre justo esa página. El workflow `neon-preview-branch.yml` (sin comitear, ver §3) prueba las migraciones por PR, pero **no** cubre este hueco: falta una verificación de que `main` no adelante a Neon |
+| `import:stage -- --neon` sin datos locales   | El comando lee `data/import/staging/staging-*.json`, que está git-ignorado y **no existe en esta máquina**. Antes hay que correr `npm run import:distrisex` y `npm run import:climax` (bajan de los sitios de los proveedores). Hasta entonces `/admin/proveedores` sale vacío en el panel desplegado |
+| Zonas de domicilio sin cargar                | `ShippingZone` existe en Neon pero está vacía, así que `/checkout` y `/legal/envios` sirven la tarifa plana histórica de $12.000 — que es exactamente el fallback diseñado, no una falla. La clienta define sus zonas en `/admin/domicilios` |
+| Bloque I a medio desplegar                   | `CLOUDINARY_URL` cargada en Vercel y `migrate deploy` **ya corrido** (2026-08-28): `SupplierStagingProduct` existe en Neon. Falta lo único que la hace útil — llenarla con `npm run import:stage -- --neon`, que a su vez necesita bajar el staging primero. Ver la deuda de arriba                                                                                                       |
 | Video de producto sin flujo de subida        | `ProductMedia` soporta VIDEO con `posterUrl` y el panel lo mostraría, pero la subida del panel acepta solo imágenes (un video excede el presupuesto de una Server Action). Cuando haya videos reales: subida firmada directa a Cloudinary o límite mayor, con posterUrl generado                                        |
 | Foto por color sin gesto en el panel         | `ProductMedia.optionValueId` existe y el import lo escribe (fotos Shopify atadas a color), pero el gestor de fotos del panel no ofrece asignar una foto a un valor de opción. Se agrega cuando la clienta lo pida                                                                                                       |
 | Staging huérfano tras seed local             | `prisma db seed` borra productos y deja filas de staging PUBLISHED apuntando a nada (FK en null). Solo pasa en la local; `import:stage` re-alinea y el curador lo muestra como publicado sin enlace. Cosmético                                                                                                          |
